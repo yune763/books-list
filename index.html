@@ -552,6 +552,46 @@
       cursor: pointer; margin-top: 6px; touch-action: manipulation;
     }
 
+    /* ── Sync Banner ── */
+    .sync-banner {
+      background: linear-gradient(135deg, #FFF8E1 0%, #FFF3E0 100%);
+      border-bottom: 1px solid #FFE082;
+      padding: 10px 16px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: #6D4C00;
+    }
+    .sync-banner-icon { font-size: 18px; flex-shrink: 0; }
+    .sync-banner-text { flex: 1; line-height: 1.5; }
+    .sync-banner-text strong { font-weight: 700; }
+    .btn-banner-setup {
+      padding: 7px 13px; flex-shrink: 0;
+      background: #FFB300; color: white;
+      border: none; border-radius: 8px;
+      font-family: inherit; font-size: 12px; font-weight: 700;
+      cursor: pointer; touch-action: manipulation;
+      white-space: nowrap;
+    }
+
+    /* ── Share URL button ── */
+    .btn-share-url {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, #C5A99D 0%, #B8A4C8 100%);
+      color: white; border: none; border-radius: 12px;
+      font-family: inherit; font-size: 15px; font-weight: 600;
+      cursor: pointer; margin-bottom: 8px; touch-action: manipulation;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .share-url-hint {
+      font-size: 12px; color: var(--text-muted);
+      background: #F0EAE2; border-radius: 8px;
+      padding: 9px 12px; line-height: 1.6; margin-bottom: 12px;
+    }
+    .share-url-not-ready {
+      font-size: 13px; color: var(--text-muted);
+      background: #F0EAE2; border-radius: 10px;
+      padding: 10px 12px; line-height: 1.6; margin-bottom: 12px;
+    }
+
     @media (min-width: 640px) {
       .modal { border-radius: 24px; margin-bottom: 40px; }
     }
@@ -589,6 +629,13 @@
     <span class="badge" id="b-読了">0</span>
   </button>
 </nav>
+
+<!-- Sync Banner (shown when Firebase not configured) -->
+<div class="sync-banner" id="sync-banner" style="display:none">
+  <span class="sync-banner-icon">⚡</span>
+  <span class="sync-banner-text"><strong>自動同期が無効です。</strong> Firebase設定後に共有URLを発行するとスマホ↔PCでリアルタイム同期できます。</span>
+  <button class="btn-banner-setup" onclick="openSettingsModal()">設定する</button>
+</div>
 
 <div class="book-grid" id="grid"></div>
 
@@ -705,11 +752,30 @@
       <button class="btn-apply" onclick="applyNewKey()">このキーで同期する</button>
     </div>
 
-    <!-- データ転送 -->
+    <!-- 自動同期URL -->
     <div class="settings-section">
-      <h3>データ転送（Firebase不要）</h3>
+      <h3>自動同期URL（おすすめ）</h3>
+      <div id="share-url-area">
+        <!-- Firebase設定済みの場合に表示 -->
+        <div id="share-ready" style="display:none">
+          <p class="share-url-hint">
+            下のボタンでURLをコピーし、<strong>PCのブラウザで開く</strong>だけで自動設定＆リアルタイム同期が始まります。
+          </p>
+          <button class="btn-share-url" onclick="generateShareURL()">🔗 同期用URLをコピー</button>
+        </div>
+        <!-- Firebase未設定の場合に表示 -->
+        <div id="share-not-ready">
+          <p class="share-url-not-ready">
+            上の「Firebase設定」を先に行うと、ワンクリックで他の端末と自動同期できるURLを発行できます。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- データ転送（手動バックアップ） -->
+    <div class="settings-section">
+      <h3>手動転送（Firebase不要）</h3>
       <p class="settings-desc">
-        スマホ → PC などでデータを移すときに使います。<br>
         <strong>①スマホ</strong>で「転送コードをコピー」→ <strong>②PC</strong>で貼り付けて「インポート」
       </p>
       <button class="btn-transfer-export" onclick="exportData()">📋 転送コードをコピー</button>
@@ -752,6 +818,7 @@ if (!localStorage.getItem('bk_sync_key')) {
 /* ════════════════════════════════════════
    Boot
 ════════════════════════════════════════ */
+checkURLHash();   // must run before initFirebase
 renderAll();
 initEvents();
 initFirebase();
@@ -827,6 +894,16 @@ function updateSyncUI() {
   if (el) el.textContent = syncKey;
   const ta = document.getElementById('fb-config-input');
   if (ta && fbCfgRaw) ta.value = fbCfgRaw;
+
+  // Banner: show when Firebase not configured
+  const banner = document.getElementById('sync-banner');
+  if (banner) banner.style.display = fbCfgRaw ? 'none' : 'flex';
+
+  // Share URL button visibility
+  const ready    = document.getElementById('share-ready');
+  const notReady = document.getElementById('share-not-ready');
+  if (ready)    ready.style.display    = fbCfgRaw ? 'block' : 'none';
+  if (notReady) notReady.style.display = fbCfgRaw ? 'none'  : 'block';
 }
 
 /* ── Firestore write helpers ── */
@@ -1280,6 +1357,51 @@ function newUUID() {
     const r = Math.random() * 16 | 0;
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
+}
+
+/* ════════════════════════════════════════
+   URL Hash auto-configuration
+════════════════════════════════════════ */
+function checkURLHash() {
+  const hash = location.hash;
+  if (!hash.startsWith('#sync=')) return;
+  const encoded = hash.slice(6);
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+    if (data.cfg && data.key) {
+      const cfgStr = JSON.stringify(data.cfg);
+      localStorage.setItem('bk_fb_cfg', cfgStr);
+      localStorage.setItem('bk_sync_key', data.key);
+      fbCfgRaw = cfgStr;
+      syncKey  = data.key;
+      history.replaceState(null, '', location.pathname + location.search);
+      setTimeout(() => toast('Firebase設定を自動適用しました！リアルタイム同期を開始します'), 800);
+    }
+  } catch (e) {
+    console.error('Hash parse error:', e);
+  }
+}
+
+function generateShareURL() {
+  if (!fbCfgRaw) { toast('Firebase設定を先に行ってください'); return; }
+  try {
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
+      cfg: JSON.parse(fbCfgRaw),
+      key: syncKey
+    }))));
+    const url = location.origin + location.pathname + '#sync=' + payload;
+    navigator.clipboard.writeText(url)
+      .then(() => toast('同期用URLをコピーしました！PCのブラウザで開いてください'))
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        toast('同期用URLをコピーしました！PCのブラウザで開いてください');
+      });
+  } catch (e) { toast('URLの生成に失敗しました'); }
 }
 
 /* ════════════════════════════════════════
