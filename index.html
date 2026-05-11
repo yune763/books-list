@@ -526,6 +526,32 @@
     }
     .access-note strong { color: var(--text-sub); }
 
+    .transfer-code-box {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .transfer-code-area {
+      width: 100%; padding: 10px 12px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-family: 'Courier New', monospace; font-size: 11px;
+      background: var(--bg); color: var(--text);
+      resize: none; height: 72px;
+      outline: none;
+    }
+    .btn-transfer-export {
+      width: 100%; padding: 11px;
+      background: var(--tsundoku-bg); color: var(--tsundoku-txt);
+      border: 2px solid var(--tsundoku); border-radius: 10px;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .btn-transfer-import {
+      width: 100%; padding: 11px;
+      background: var(--dokuryo-bg); color: var(--dokuryo-txt);
+      border: 2px solid var(--dokuryo); border-radius: 10px;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer; margin-top: 6px; touch-action: manipulation;
+    }
+
     @media (min-width: 640px) {
       .modal { border-radius: 24px; margin-bottom: 40px; }
     }
@@ -677,6 +703,23 @@
         <input type="text" id="input-new-key" placeholder="他の端末のキーを貼り付け" autocomplete="off">
       </div>
       <button class="btn-apply" onclick="applyNewKey()">このキーで同期する</button>
+    </div>
+
+    <!-- データ転送 -->
+    <div class="settings-section">
+      <h3>データ転送（Firebase不要）</h3>
+      <p class="settings-desc">
+        スマホ → PC などでデータを移すときに使います。<br>
+        <strong>①スマホ</strong>で「転送コードをコピー」→ <strong>②PC</strong>で貼り付けて「インポート」
+      </p>
+      <button class="btn-transfer-export" onclick="exportData()">📋 転送コードをコピー</button>
+      <div class="form-row" style="margin-top:12px;margin-bottom:0">
+        <label>他の端末からインポート</label>
+        <div class="transfer-code-box">
+          <textarea class="transfer-code-area" id="import-code" placeholder="転送コードをここに貼り付け"></textarea>
+          <button class="btn-transfer-import" onclick="importData()">⬇ このコードでインポート</button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -1237,6 +1280,57 @@ function newUUID() {
     const r = Math.random() * 16 | 0;
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
+}
+
+/* ════════════════════════════════════════
+   Export / Import
+════════════════════════════════════════ */
+function exportData() {
+  if (!books.length) { toast('書籍データがありません'); return; }
+  const payload = JSON.stringify({ v: 1, books });
+  const code = btoa(unescape(encodeURIComponent(payload)));
+  navigator.clipboard.writeText(code)
+    .then(() => toast(`転送コードをコピーしました（${books.length}冊）`))
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast(`転送コードをコピーしました（${books.length}冊）`);
+    });
+}
+
+function importData() {
+  const code = document.getElementById('import-code').value.trim();
+  if (!code) { toast('転送コードを貼り付けてください'); return; }
+  let parsed;
+  try {
+    const json = decodeURIComponent(escape(atob(code)));
+    parsed = JSON.parse(json);
+  } catch {
+    toast('コードが正しくありません'); return;
+  }
+  if (!parsed.books || !Array.isArray(parsed.books)) {
+    toast('データ形式が正しくありません'); return;
+  }
+  if (!confirm(`${parsed.books.length}冊のデータをインポートします。\n現在のデータとマージされます。よろしいですか？`)) return;
+
+  const existingIds = new Set(books.map(b => b.id));
+  let added = 0;
+  parsed.books.forEach(b => {
+    if (!existingIds.has(b.id)) {
+      books.push(b);
+      added++;
+    }
+  });
+  books.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+  persist();
+  renderAll();
+  document.getElementById('import-code').value = '';
+  toast(`${added}冊をインポートしました`);
+  closeSettingsModal();
 }
 </script>
 </body>
