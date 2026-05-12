@@ -10,6 +10,7 @@
   <!-- Firebase SDK (compat v10) -->
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
   <!-- Barcode Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
@@ -592,6 +593,40 @@
       padding: 10px 12px; line-height: 1.6; margin-bottom: 12px;
     }
 
+    /* ── Google Login ── */
+    .btn-login {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 14px;
+      background: white; color: #3D3530;
+      border: 1.5px solid #E0D4CC; border-radius: 10px;
+      font-family: inherit; font-size: 13px; font-weight: 600;
+      cursor: pointer; touch-action: manipulation;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    .btn-login svg { flex-shrink: 0; }
+    .user-chip {
+      display: flex; align-items: center; gap: 7px;
+      background: rgba(255,255,255,.5);
+      border: 1px solid rgba(255,255,255,.7);
+      border-radius: 20px; padding: 4px 10px 4px 4px;
+    }
+    .user-avatar {
+      width: 26px; height: 26px; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0;
+      background: #C5A99D;
+    }
+    .user-name {
+      font-size: 12px; font-weight: 600; color: #5D4037;
+      max-width: 80px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .btn-logout {
+      padding: 6px 10px; margin-left: 4px;
+      background: rgba(255,255,255,.5); border: none; border-radius: 8px;
+      font-family: inherit; font-size: 12px; color: #5D4037; font-weight: 600;
+      cursor: pointer; touch-action: manipulation;
+    }
+
     @media (min-width: 640px) {
       .modal { border-radius: 24px; margin-bottom: 40px; }
     }
@@ -606,10 +641,17 @@
     <p>所有書籍の一覧・重複購入防止</p>
   </div>
   <div class="header-right">
-    <div class="sync-indicator">
-      <span class="sync-dot sync-offline" id="sync-dot"></span>
-      <span id="sync-label">ローカル</span>
+    <!-- ログイン前 -->
+    <button class="btn-login" id="btn-login" onclick="signIn()">
+      <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Googleでログイン
+    </button>
+    <!-- ログイン後 -->
+    <div class="user-chip" id="user-chip" style="display:none">
+      <img class="user-avatar" id="user-avatar" src="" alt="">
+      <span class="user-name" id="user-name"></span>
     </div>
+    <button class="btn-logout" id="btn-logout" onclick="signOut()" style="display:none">ログアウト</button>
     <button class="btn-settings" id="btn-settings">設定</button>
   </div>
 </header>
@@ -630,11 +672,11 @@
   </button>
 </nav>
 
-<!-- Sync Banner (shown when Firebase not configured) -->
+<!-- Login Banner -->
 <div class="sync-banner" id="sync-banner" style="display:none">
   <span class="sync-banner-icon">⚡</span>
-  <span class="sync-banner-text"><strong>自動同期が無効です。</strong> Firebase設定後に共有URLを発行するとスマホ↔PCでリアルタイム同期できます。</span>
-  <button class="btn-banner-setup" onclick="openSettingsModal()">設定する</button>
+  <span class="sync-banner-text"><strong>ログインすると自動同期が有効になります。</strong> スマホ・PCで同じGoogleアカウントでログインするだけで即時同期されます。</span>
+  <button class="btn-banner-setup" onclick="signIn()">ログイン</button>
 </div>
 
 <div class="book-grid" id="grid"></div>
@@ -695,112 +737,41 @@
     <div class="drag-handle"></div>
     <h2 class="modal-title">設定</h2>
 
-    <!-- 同期状態確認 -->
-    <div class="settings-section" id="sync-status-section">
-      <h3>同期状態</h3>
-      <div class="fb-status">
-        <span class="sync-dot" id="settings-sync-dot" style="width:9px;height:9px"></span>
-        <span id="settings-sync-label">確認中...</span>
-      </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;line-height:1.6">
-        <strong style="color:var(--text-sub)">この端末の同期キー：</strong><br>
-        <span id="sync-key-display2" style="font-family:monospace;font-size:11px;word-break:break-all;color:var(--text)"></span>
-      </div>
-      <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
-        スマホとPCで<strong style="color:var(--text-sub)">同じキー</strong>になっているか確認してください。<br>
-        違う場合は「自動同期URL」セクションからURLを再発行してください。
-      </p>
-    </div>
-
-    <!-- スマホでの開き方 -->
+    <!-- アカウント -->
     <div class="settings-section">
-      <h3>スマホでの開き方</h3>
-      <div class="access-note">
-        <strong>1. AirDrop（iPhone/Mac のみ）</strong><br>
-        このHTMLファイルをAirDropでiPhoneに送り、Safariで開く。<br><br>
-        <strong>2. GitHub Pages（おすすめ）</strong><br>
-        GitHubにファイルをアップすると固定URLでどの端末からもアクセス可能。<br><br>
-        <strong>3. Dropbox / Google Drive</strong><br>
-        クラウドに保存し、スマホのブラウザで開く。
-      </div>
-    </div>
-
-    <!-- Firebase 設定 -->
-    <div class="settings-section">
-      <h3>Firebase 設定（クラウド同期）</h3>
-      <div class="fb-status">
-        <span class="sync-dot" id="settings-sync-dot" style="width:9px;height:9px"></span>
-        <span id="settings-sync-label">未設定</span>
-      </div>
-      <details>
-        <summary>設定方法（5分でできます）</summary>
-        <ol>
-          <li><a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> を開く</li>
-          <li>「プロジェクトを追加」で新規作成（無料）</li>
-          <li>左メニュー「Firestore Database」→「データベースの作成」→「テストモードで開始」</li>
-          <li>「プロジェクトの設定」→「ウェブアプリを追加」(&#60;/&#62;)</li>
-          <li>表示された firebaseConfig の { } 全体をコピー</li>
-          <li>以下に貼り付けて「保存して接続」</li>
-        </ol>
-      </details>
-      <div class="form-row" style="margin-bottom:0">
-        <label>Firebase 設定 JSON</label>
-        <textarea id="fb-config-input" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}'></textarea>
-      </div>
-      <button class="btn-fb-save" onclick="saveFirebaseConfig()">保存して接続</button>
-      <button class="btn-fb-clear" onclick="clearFirebaseConfig()">設定をクリア（ローカルのみに戻す）</button>
-    </div>
-
-    <!-- 同期キー -->
-    <div class="settings-section">
-      <h3>同期キー</h3>
-      <p class="settings-desc">
-        PC・スマホで<strong>同じキー</strong>を使うとデータが共有されます。<br>
-        Firebase設定後にキーをコピーし、別の端末で「別のキーで引き継ぐ」から貼り付けてください。
-      </p>
-      <div class="sync-key-box">
-        <span class="sync-key-value" id="sync-key-display"></span>
-        <button class="btn-copy" onclick="copySyncKey()">コピー</button>
-      </div>
-      <div class="form-row" style="margin-bottom:0">
-        <label>別のキーで引き継ぐ</label>
-        <input type="text" id="input-new-key" placeholder="他の端末のキーを貼り付け" autocomplete="off">
-      </div>
-      <button class="btn-apply" onclick="applyNewKey()">このキーで同期する</button>
-    </div>
-
-    <!-- 自動同期URL -->
-    <div class="settings-section">
-      <h3>自動同期URL（おすすめ）</h3>
-      <div id="share-url-area">
-        <!-- Firebase設定済みの場合に表示 -->
-        <div id="share-ready" style="display:none">
-          <p class="share-url-hint">
-            下のボタンでURLをコピーし、<strong>PCのブラウザで開く</strong>だけで自動設定＆リアルタイム同期が始まります。
-          </p>
-          <button class="btn-share-url" onclick="generateShareURL()">🔗 同期用URLをコピー</button>
+      <h3>アカウント・同期</h3>
+      <div id="settings-logged-in" style="display:none">
+        <div class="fb-status">
+          <span class="sync-dot sync-synced" style="width:9px;height:9px"></span>
+          <span style="font-size:13px;color:var(--text-sub)">リアルタイム同期中</span>
         </div>
-        <!-- Firebase未設定の場合に表示 -->
-        <div id="share-not-ready">
-          <p class="share-url-not-ready">
-            上の「Firebase設定」を先に行うと、ワンクリックで他の端末と自動同期できるURLを発行できます。
-          </p>
+        <p class="settings-desc" id="settings-user-desc" style="margin-top:8px"></p>
+        <button class="btn-fb-clear" onclick="signOut()">ログアウト</button>
+      </div>
+      <div id="settings-logged-out">
+        <div class="fb-status">
+          <span class="sync-dot sync-offline" style="width:9px;height:9px"></span>
+          <span style="font-size:13px;color:var(--text-sub)">ローカル保存（同期なし）</span>
         </div>
+        <p class="settings-desc" style="margin-top:8px">
+          Googleでログインすると、スマホ・PCで書籍データが<strong>自動的にリアルタイム同期</strong>されます。
+        </p>
+        <button class="btn-fb-save" onclick="signIn(); closeSettingsModal();">Googleでログイン</button>
       </div>
     </div>
 
-    <!-- データ転送（手動バックアップ） -->
+    <!-- データ転送（バックアップ） -->
     <div class="settings-section">
-      <h3>手動転送（Firebase不要）</h3>
+      <h3>データのバックアップ・復元</h3>
       <p class="settings-desc">
-        <strong>①スマホ</strong>で「転送コードをコピー」→ <strong>②PC</strong>で貼り付けて「インポート」
+        書籍データをコードとして書き出し・読み込みできます。
       </p>
-      <button class="btn-transfer-export" onclick="exportData()">📋 転送コードをコピー</button>
+      <button class="btn-transfer-export" onclick="exportData()">📋 バックアップコードをコピー</button>
       <div class="form-row" style="margin-top:12px;margin-bottom:0">
-        <label>他の端末からインポート</label>
+        <label>コードから復元</label>
         <div class="transfer-code-box">
-          <textarea class="transfer-code-area" id="import-code" placeholder="転送コードをここに貼り付け"></textarea>
-          <button class="btn-transfer-import" onclick="importData()">⬇ このコードでインポート</button>
+          <textarea class="transfer-code-area" id="import-code" placeholder="バックアップコードを貼り付け"></textarea>
+          <button class="btn-transfer-import" onclick="importData()">⬇ 復元する</button>
         </div>
       </div>
     </div>
@@ -812,6 +783,18 @@
 
 <script>
 /* ════════════════════════════════════════
+   Firebase Config (hardcoded)
+════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyD6zmjRbudBXEFPcrb8F5pS8PBv_bohLZ4",
+  authDomain:        "library-list-0511.firebaseapp.com",
+  projectId:         "library-list-0511",
+  storageBucket:     "library-list-0511.firebasestorage.app",
+  messagingSenderId: "772282653164",
+  appId:             "1:772282653164:web:d50fb3e78b0dd2d5f508c9"
+};
+
+/* ════════════════════════════════════════
    State
 ════════════════════════════════════════ */
 let books        = JSON.parse(localStorage.getItem('bk_list') || '[]');
@@ -822,209 +805,121 @@ let pendingThumb = null;
 let scanner      = null;
 let inputMode    = 'manual';
 
-// Sync
-let syncKey  = localStorage.getItem('bk_sync_key') || newUUID();
-let fbCfgRaw = localStorage.getItem('bk_fb_cfg') || '';
-let db       = null;
-let unsub    = null;
-
-if (!localStorage.getItem('bk_sync_key')) {
-  localStorage.setItem('bk_sync_key', syncKey);
-}
+let db          = null;
+let auth        = null;
+let currentUser = null;
+let unsub       = null;
 
 /* ════════════════════════════════════════
    Boot
 ════════════════════════════════════════ */
-checkURLHash();   // must run before initFirebase
 renderAll();
 initEvents();
 initFirebase();
 
 /* ════════════════════════════════════════
-   Firebase
+   Firebase & Auth
 ════════════════════════════════════════ */
 function initFirebase() {
-  updateSyncUI();
-  if (!fbCfgRaw) return;
-
-  let cfg;
-  try { cfg = JSON.parse(fbCfgRaw); } catch { return; }
-  if (!cfg.projectId) return;
-
   try {
-    if (!firebase.apps.length) firebase.initializeApp(cfg);
-    db = firebase.firestore();
-    setSyncStatus('connecting');
-    subscribe();
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db   = firebase.firestore();
+    auth = firebase.auth();
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      updateAuthUI();
+      if (user) {
+        subscribe();
+      } else {
+        if (unsub) { unsub(); unsub = null; }
+        books = JSON.parse(localStorage.getItem('bk_list') || '[]');
+        renderAll();
+      }
+    });
   } catch (e) {
     console.error('Firebase init error:', e);
-    setSyncStatus('error');
   }
 }
 
 function booksRef() {
-  return db.collection('libraries').doc(syncKey).collection('books');
+  return db.collection('users').doc(currentUser.uid).collection('books');
 }
 
 function subscribe() {
   if (unsub) unsub();
-  setSyncStatus('connecting');
   let firstSnapshot = true;
   unsub = booksRef().onSnapshot(
     snap => {
-      // On first snapshot: if Firestore is empty but local books exist, migrate them
       if (firstSnapshot && snap.empty && books.length > 0) {
         firstSnapshot = false;
         Promise.all(books.map(b => booksRef().doc(b.id).set(b)))
           .then(() => toast('ローカルの書籍データをクラウドに移行しました'))
           .catch(e => console.error('Migration error:', e));
-        return; // onSnapshot will fire again with migrated data
+        return;
       }
       firstSnapshot = false;
       books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       books.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
       localStorage.setItem('bk_list', JSON.stringify(books));
-      setSyncStatus('synced');
       renderAll();
     },
-    err => {
-      console.error('Firestore error:', err);
-      setSyncStatus('error');
-    }
+    err => console.error('Firestore error:', err)
   );
 }
 
-function setSyncStatus(status) {
-  const classes = {
-    offline: 'sync-offline', connecting: 'sync-connecting',
-    synced: 'sync-synced',   error: 'sync-error'
-  };
-  const labels = {
-    offline: 'ローカル', connecting: '接続中...',
-    synced: '同期済み', error: 'エラー'
-  };
-  ['sync-dot', 'settings-sync-dot'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.className = 'sync-dot ' + (classes[status] || 'sync-offline');
-    }
+function signIn() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => {
+    console.error('Sign in error:', e);
+    toast('ログインに失敗しました。ポップアップがブロックされていないか確認してください。');
   });
-  const lb = document.getElementById('sync-label');
-  if (lb) lb.textContent = labels[status] || '';
-  const slb = document.getElementById('settings-sync-label');
-  if (slb) slb.textContent = labels[status] || '';
 }
 
-function updateSyncUI() {
-  setSyncStatus(db ? 'synced' : 'offline');
-  const el = document.getElementById('sync-key-display');
-  if (el) el.textContent = syncKey;
-  const el2 = document.getElementById('sync-key-display2');
-  if (el2) el2.textContent = syncKey;
-  const ta = document.getElementById('fb-config-input');
-  if (ta && fbCfgRaw) ta.value = fbCfgRaw;
+function signOut() {
+  if (!confirm('ログアウトしますか？')) return;
+  if (unsub) { unsub(); unsub = null; }
+  auth.signOut().then(() => {
+    books = JSON.parse(localStorage.getItem('bk_list') || '[]');
+    renderAll();
+    toast('ログアウトしました');
+  });
+}
 
-  // Banner: show when Firebase not configured
-  const banner = document.getElementById('sync-banner');
-  if (banner) banner.style.display = fbCfgRaw ? 'none' : 'flex';
+function updateAuthUI() {
+  const loggedIn  = !!currentUser;
+  const btnLogin  = document.getElementById('btn-login');
+  const userChip  = document.getElementById('user-chip');
+  const btnLogout = document.getElementById('btn-logout');
+  const banner    = document.getElementById('sync-banner');
+  const sLoggedIn = document.getElementById('settings-logged-in');
+  const sLoggedOut= document.getElementById('settings-logged-out');
+  const sUserDesc = document.getElementById('settings-user-desc');
 
-  // Share URL button visibility
-  const ready    = document.getElementById('share-ready');
-  const notReady = document.getElementById('share-not-ready');
-  if (ready)    ready.style.display    = fbCfgRaw ? 'block' : 'none';
-  if (notReady) notReady.style.display = fbCfgRaw ? 'none'  : 'block';
+  if (btnLogin)  btnLogin.style.display  = loggedIn ? 'none' : 'flex';
+  if (userChip)  userChip.style.display  = loggedIn ? 'flex' : 'none';
+  if (btnLogout) btnLogout.style.display = loggedIn ? 'block' : 'none';
+  if (banner)    banner.style.display    = loggedIn ? 'none' : 'flex';
+  if (sLoggedIn)  sLoggedIn.style.display  = loggedIn ? 'block' : 'none';
+  if (sLoggedOut) sLoggedOut.style.display = loggedIn ? 'none'  : 'block';
+
+  if (loggedIn && currentUser) {
+    document.getElementById('user-name').textContent  = currentUser.displayName || currentUser.email;
+    document.getElementById('user-avatar').src        = currentUser.photoURL || '';
+    if (sUserDesc) sUserDesc.textContent = `${currentUser.displayName || currentUser.email} でログイン中`;
+  }
 }
 
 /* ── Firestore write helpers ── */
 async function fsWrite(book) {
-  if (!db) { persist(); renderAll(); return; }
+  if (!currentUser) { persist(); renderAll(); return; }
   try { await booksRef().doc(book.id).set(book); }
   catch (e) { console.error('Write error:', e); toast('保存に失敗しました'); }
 }
 
 async function fsDelete(id) {
-  if (!db) { persist(); renderAll(); return; }
+  if (!currentUser) { persist(); renderAll(); return; }
   try { await booksRef().doc(id).delete(); }
   catch (e) { console.error('Delete error:', e); toast('削除に失敗しました'); }
-}
-
-/* ════════════════════════════════════════
-   Settings actions
-════════════════════════════════════════ */
-function saveFirebaseConfig() {
-  const raw = document.getElementById('fb-config-input').value.trim();
-  if (!raw) { toast('設定を入力してください'); return; }
-  let cfg;
-  try { cfg = JSON.parse(raw); } catch { toast('JSON の形式が正しくありません'); return; }
-  if (!cfg.projectId || !cfg.apiKey) { toast('projectId と apiKey が見つかりません'); return; }
-
-  // reset existing app if any
-  if (firebase.apps.length) {
-    firebase.apps.forEach(a => a.delete());
-  }
-  db    = null;
-  unsub = null;
-
-  fbCfgRaw = raw;
-  localStorage.setItem('bk_fb_cfg', raw);
-
-  try {
-    firebase.initializeApp(cfg);
-    db = firebase.firestore();
-    setSyncStatus('connecting');
-    subscribe();
-    toast('Firebase に接続しました');
-  } catch (e) {
-    setSyncStatus('error');
-    toast('接続に失敗しました。設定を確認してください');
-  }
-}
-
-function clearFirebaseConfig() {
-  if (!confirm('Firebase設定をクリアしますか？ローカル保存のみに戻ります。')) return;
-  if (unsub) { unsub(); unsub = null; }
-  db       = null;
-  fbCfgRaw = '';
-  localStorage.removeItem('bk_fb_cfg');
-  document.getElementById('fb-config-input').value = '';
-  firebase.apps.forEach(a => a.delete());
-  setSyncStatus('offline');
-  toast('ローカル保存に切り替えました');
-}
-
-function copySyncKey() {
-  navigator.clipboard.writeText(syncKey)
-    .then(() => toast('同期キーをコピーしました'))
-    .catch(() => {
-      // fallback for older browsers
-      const el = document.getElementById('sync-key-display');
-      const range = document.createRange();
-      range.selectNode(el);
-      window.getSelection().removeAllRanges();
-      window.getSelection().addRange(range);
-      document.execCommand('copy');
-      toast('同期キーをコピーしました');
-    });
-}
-
-function applyNewKey() {
-  const val = document.getElementById('input-new-key').value.trim();
-  if (!val) { toast('キーを入力してください'); return; }
-  if (val === syncKey) { toast('現在のキーと同じです'); return; }
-
-  if (!confirm(`同期キーを変更すると、現在のデータが置き換わります。\nよろしいですか？`)) return;
-
-  syncKey = val;
-  localStorage.setItem('bk_sync_key', syncKey);
-  document.getElementById('sync-key-display').textContent = syncKey;
-  document.getElementById('input-new-key').value = '';
-
-  if (db) {
-    subscribe();
-    toast('同期キーを変更しました');
-  } else {
-    toast('同期キーを変更しました（Firebase未設定）');
-  }
 }
 
 /* ════════════════════════════════════════
@@ -1168,7 +1063,7 @@ function closeBookModal() {
 }
 
 function openSettingsModal() {
-  updateSyncUI();
+  updateAuthUI();
   document.getElementById('settings-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1325,8 +1220,7 @@ async function saveBook() {
 
   closeBookModal();
 
-  if (db) {
-    // Firestore handles state via onSnapshot listener
+  if (currentUser) {
     await fsWrite(book);
     toast(existing ? '書籍を更新しました' : '書籍を追加しました');
   } else {
@@ -1355,7 +1249,7 @@ function editBook(id) {
 
 async function deleteBook(id) {
   if (!confirm('この書籍を削除しますか？')) return;
-  if (db) {
+  if (currentUser) {
     await fsDelete(id);
   } else {
     books = books.filter(b => b.id !== id);
@@ -1386,51 +1280,6 @@ function newUUID() {
     const r = Math.random() * 16 | 0;
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
-}
-
-/* ════════════════════════════════════════
-   URL Hash auto-configuration
-════════════════════════════════════════ */
-function checkURLHash() {
-  const hash = location.hash;
-  if (!hash.startsWith('#sync=')) return;
-  const encoded = hash.slice(6);
-  try {
-    const data = JSON.parse(decodeURIComponent(escape(atob(encoded))));
-    if (data.cfg && data.key) {
-      const cfgStr = JSON.stringify(data.cfg);
-      localStorage.setItem('bk_fb_cfg', cfgStr);
-      localStorage.setItem('bk_sync_key', data.key);
-      fbCfgRaw = cfgStr;
-      syncKey  = data.key;
-      history.replaceState(null, '', location.pathname + location.search);
-      setTimeout(() => toast('Firebase設定を自動適用しました！リアルタイム同期を開始します'), 800);
-    }
-  } catch (e) {
-    console.error('Hash parse error:', e);
-  }
-}
-
-function generateShareURL() {
-  if (!fbCfgRaw) { toast('Firebase設定を先に行ってください'); return; }
-  try {
-    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
-      cfg: JSON.parse(fbCfgRaw),
-      key: syncKey
-    }))));
-    const url = location.origin + location.pathname + '#sync=' + payload;
-    navigator.clipboard.writeText(url)
-      .then(() => toast('同期用URLをコピーしました！PCのブラウザで開いてください'))
-      .catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        toast('同期用URLをコピーしました！PCのブラウザで開いてください');
-      });
-  } catch (e) { toast('URLの生成に失敗しました'); }
 }
 
 /* ════════════════════════════════════════
