@@ -695,6 +695,23 @@
     <div class="drag-handle"></div>
     <h2 class="modal-title">設定</h2>
 
+    <!-- 同期状態確認 -->
+    <div class="settings-section" id="sync-status-section">
+      <h3>同期状態</h3>
+      <div class="fb-status">
+        <span class="sync-dot" id="settings-sync-dot" style="width:9px;height:9px"></span>
+        <span id="settings-sync-label">確認中...</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;line-height:1.6">
+        <strong style="color:var(--text-sub)">この端末の同期キー：</strong><br>
+        <span id="sync-key-display2" style="font-family:monospace;font-size:11px;word-break:break-all;color:var(--text)"></span>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
+        スマホとPCで<strong style="color:var(--text-sub)">同じキー</strong>になっているか確認してください。<br>
+        違う場合は「自動同期URL」セクションからURLを再発行してください。
+      </p>
+    </div>
+
     <!-- スマホでの開き方 -->
     <div class="settings-section">
       <h3>スマホでの開き方</h3>
@@ -852,8 +869,18 @@ function booksRef() {
 function subscribe() {
   if (unsub) unsub();
   setSyncStatus('connecting');
+  let firstSnapshot = true;
   unsub = booksRef().onSnapshot(
     snap => {
+      // On first snapshot: if Firestore is empty but local books exist, migrate them
+      if (firstSnapshot && snap.empty && books.length > 0) {
+        firstSnapshot = false;
+        Promise.all(books.map(b => booksRef().doc(b.id).set(b)))
+          .then(() => toast('ローカルの書籍データをクラウドに移行しました'))
+          .catch(e => console.error('Migration error:', e));
+        return; // onSnapshot will fire again with migrated data
+      }
+      firstSnapshot = false;
       books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       books.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
       localStorage.setItem('bk_list', JSON.stringify(books));
@@ -892,6 +919,8 @@ function updateSyncUI() {
   setSyncStatus(db ? 'synced' : 'offline');
   const el = document.getElementById('sync-key-display');
   if (el) el.textContent = syncKey;
+  const el2 = document.getElementById('sync-key-display2');
+  if (el2) el2.textContent = syncKey;
   const ta = document.getElementById('fb-config-input');
   if (ta && fbCfgRaw) ta.value = fbCfgRaw;
 
