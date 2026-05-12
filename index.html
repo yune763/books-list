@@ -593,93 +593,6 @@
       padding: 10px 12px; line-height: 1.6; margin-bottom: 12px;
     }
 
-    /* ── Theme definitions ── */
-    body[data-theme="ghibli"] {
-      --bg:#EEE9DF; --surface:#F8F5EF;
-      --header-from:#557A4F; --header-to:#7A9E6E;
-      --border:#C9D4C0; --text:#2B3828; --text-sub:#536050; --text-muted:#7A8F75;
-      --tsundoku:#E8A840; --mihikou:#6AAFCE; --dokuryo:#5EA86A;
-      --tsundoku-bg:#FFF3D4; --mihikou-bg:#D6EFF8; --dokuryo-bg:#D4F0DA;
-      --tsundoku-txt:#7A5500; --mihikou-txt:#1A5A72; --dokuryo-txt:#1A6028;
-    }
-    body[data-theme="ghibli"] header { background:linear-gradient(135deg,#557A4F 0%,#7A9E6E 100%); }
-    body[data-theme="ghibli"] .header-left h1 { color:#F5F0E8; }
-    body[data-theme="ghibli"] .header-left p  { color:#C8DCC0; }
-    body[data-theme="ghibli"] .sync-indicator,.btn-settings { color:#D4E8CC; }
-    body[data-theme="ghibli"] .btn-settings { color:#F0EAE0; }
-
-    body[data-theme="disney"] {
-      --bg:#F2F0FF; --surface:#FFFFFF;
-      --header-from:#1A237E; --header-to:#4527A0;
-      --border:#D4D0F0; --text:#1A1040; --text-sub:#44388A; --text-muted:#7868B8;
-      --tsundoku:#FF6B8A; --mihikou:#5C8EE8; --dokuryo:#F5C518;
-      --tsundoku-bg:#FFE4EC; --mihikou-bg:#E0ECFF; --dokuryo-bg:#FFF8D4;
-      --tsundoku-txt:#C0002C; --mihikou-txt:#1A4A9C; --dokuryo-txt:#7A5A00;
-    }
-    body[data-theme="disney"] header { background:linear-gradient(135deg,#1A237E 0%,#4527A0 100%); }
-    body[data-theme="disney"] .header-left h1 { color:#F5D060; }
-    body[data-theme="disney"] .header-left p  { color:#B8B0E8; }
-    body[data-theme="disney"] .sync-indicator { color:#C8C0F0; }
-    body[data-theme="disney"] .btn-settings   { color:#E8E0FF; }
-    body[data-theme="disney"] .fab { background:linear-gradient(135deg,#1A237E 0%,#F5C518 100%); }
-
-    body[data-theme="yumekawa"] {
-      --bg:#FFF0F8; --surface:#FFFFFF;
-      --header-from:#FFBDE8; --header-to:#DDB8FF;
-      --border:#FFD6F0; --text:#5C2860; --text-sub:#8840A0; --text-muted:#B888C8;
-      --tsundoku:#FF9EC4; --mihikou:#B8A4FF; --dokuryo:#90E8C0;
-      --tsundoku-bg:#FFE4F0; --mihikou-bg:#EDE4FF; --dokuryo-bg:#D8F8EC;
-      --tsundoku-txt:#A0006A; --mihikou-txt:#5028A0; --dokuryo-txt:#006848;
-    }
-    body[data-theme="yumekawa"] header { background:linear-gradient(135deg,#FFBDE8 0%,#DDB8FF 100%); }
-    body[data-theme="yumekawa"] .header-left h1 { color:#8840A0; }
-    body[data-theme="yumekawa"] .header-left p  { color:#C080D8; }
-    body[data-theme="yumekawa"] .sync-indicator { color:#A860C0; }
-    body[data-theme="yumekawa"] .btn-settings   { color:#8840A0; }
-    body[data-theme="yumekawa"] .fab { background:linear-gradient(135deg,#FF9EC4 0%,#B8A4FF 100%); }
-
-    body[data-theme="interi"] {
-      --bg:#0F1117; --surface:#1C2030;
-      --header-from:#1C2030; --header-to:#242840;
-      --border:#2E3450; --text:#E8ECF4; --text-sub:#A0A8C0; --text-muted:#6870A0;
-      --tsundoku:#FF4757; --mihikou:#2ED4FF; --dokuryo:#2ECC71;
-      --tsundoku-bg:#2A1520; --mihikou-bg:#0E2030; --dokuryo-bg:#0E2A1A;
-      --tsundoku-txt:#FF8090; --mihikou-txt:#70E8FF; --dokuryo-txt:#70E890;
-    }
-    body[data-theme="interi"] header { background:linear-gradient(135deg,#1C2030 0%,#242840 100%); box-shadow:0 2px 10px rgba(0,0,0,.5); }
-    body[data-theme="interi"] .header-left h1  { color:#E8D898; }
-    body[data-theme="interi"] .header-left p   { color:#6870A0; }
-    body[data-theme="interi"] .sync-indicator  { color:#6870A0; }
-    body[data-theme="interi"] .btn-settings    { color:#A0A8C0; background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.15); }
-    body[data-theme="interi"] .tabs            { background:#1C2030; border-color:#2E3450; }
-    body[data-theme="interi"] .card            { box-shadow:0 2px 8px rgba(0,0,0,.4); }
-    body[data-theme="interi"] .modal           { background:#1C2030; }
-    body[data-theme="interi"] .settings-section{ background:#242840; }
-    body[data-theme="interi"] input[type="text"],
-    body[data-theme="interi"] input[type="number"],
-    body[data-theme="interi"] textarea         { background:#141824; color:#E8ECF4; border-color:#2E3450; }
-    body[data-theme="interi"] .fab             { background:linear-gradient(135deg,#FF4757 0%,#2ED4FF 100%); }
-    body[data-theme="interi"] #login-screen    { background:#0F1117; }
-    body[data-theme="interi"] .login-card      { background:#1C2030; }
-    body[data-theme="interi"] .login-card p    { color:#A0A8C0; }
-
-    /* ── Theme Switcher Bar ── */
-    .theme-bar {
-      display:flex; gap:8px; padding:10px 14px;
-      background:var(--surface); border-bottom:1px solid var(--border);
-      overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
-    }
-    .theme-bar::-webkit-scrollbar { display:none; }
-    .theme-btn {
-      flex-shrink:0; padding:7px 14px; border-radius:20px;
-      border:1.5px solid var(--border); background:var(--bg);
-      font-family:inherit; font-size:12px; font-weight:600; color:var(--text-sub);
-      cursor:pointer; touch-action:manipulation; white-space:nowrap;
-      transition:all .2s;
-    }
-    .theme-btn.active { background:var(--text); color:var(--surface); border-color:var(--text); }
-    body[data-theme="interi"] .theme-btn.active { background:#E8D898; color:#0F1117; border-color:#E8D898; }
-
     /* ── Google Login ── */
     .btn-login {
       display: flex; align-items: center; gap: 7px;
@@ -758,15 +671,6 @@
     <span class="badge" id="b-読了">0</span>
   </button>
 </nav>
-
-<!-- Theme Switcher Bar -->
-<div class="theme-bar" id="theme-bar">
-  <button class="theme-btn active" data-theme="default"   onclick="setTheme('default')">🎨 今のまま</button>
-  <button class="theme-btn"        data-theme="ghibli"    onclick="setTheme('ghibli')">🌿 ジブリ風</button>
-  <button class="theme-btn"        data-theme="disney"    onclick="setTheme('disney')">✨ ディズニー風</button>
-  <button class="theme-btn"        data-theme="yumekawa"  onclick="setTheme('yumekawa')">🌸 ゆめかわ風</button>
-  <button class="theme-btn"        data-theme="interi"    onclick="setTheme('interi')">📐 パキッとインテリ</button>
-</div>
 
 <!-- Login Screen (shown when not logged in) -->
 <div id="login-screen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:300; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px;">
@@ -1397,26 +1301,6 @@ function newUUID() {
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
 }
-
-/* ════════════════════════════════════════
-   Theme
-════════════════════════════════════════ */
-function setTheme(theme) {
-  if (theme === 'default') {
-    document.body.removeAttribute('data-theme');
-  } else {
-    document.body.setAttribute('data-theme', theme);
-  }
-  localStorage.setItem('bk_theme', theme);
-  document.querySelectorAll('.theme-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.theme === theme)
-  );
-}
-
-(function loadTheme() {
-  const saved = localStorage.getItem('bk_theme') || 'default';
-  setTheme(saved);
-})();
 
 /* ════════════════════════════════════════
    Export / Import
