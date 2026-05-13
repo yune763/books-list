@@ -1144,9 +1144,8 @@ function renderBooks() {
     return aa.localeCompare(bb, 'ja');
   });
 
-  const totalPrice = sorted.reduce((s, b) => s + (Number(b.price) || 0), 0);
   const summaryHtml = `<div class="summary">
-    ${sorted.length} 冊　|　合計 <span>¥${totalPrice.toLocaleString()}</span>
+    <span>${sorted.length}</span> 冊
   </div>`;
 
   let prevAuthor = null;
