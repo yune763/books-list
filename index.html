@@ -723,7 +723,14 @@
     <div class="scanner-wrap" id="scanner-wrap" style="display:none">
       <div id="qr-reader"></div>
       <p class="scan-hint" id="scan-hint">バーコード（ISBN）をカメラに向けてください</p>
-      <div class="scan-ok" id="scan-ok">読み取り完了。情報を自動入力しました</div>
+      <div class="scan-ok" id="scan-ok">読み取り完了。書籍情報を検索中...</div>
+    </div>
+    <div class="form-row" style="margin-top:10px;margin-bottom:0">
+      <label>ISBNを手動で入力（カメラが使えない場合）</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="isbn-manual" placeholder="9784..." inputmode="numeric" style="flex:1">
+        <button onclick="searchISBNManual()" class="btn-save" style="width:auto;padding:12px 16px;margin-top:0;font-size:14px">検索</button>
+      </div>
     </div>
 
     <div class="dup-warn" id="dup-warn"></div>
@@ -1137,21 +1144,67 @@ function pickStatus(s) {
 /* ════════════════════════════════════════
    Barcode Scanner
 ════════════════════════════════════════ */
+let nativeStream   = null;
+let nativeScanLoop = null;
+
 async function startScanner() {
   document.getElementById('scan-hint').textContent = 'カメラを起動中...';
   document.getElementById('scan-ok').classList.remove('show');
+  // ネイティブ BarcodeDetector が使えれば優先（Chrome/Android で高精度）
+  if ('BarcodeDetector' in window) {
+    await startNativeScanner();
+  } else {
+    await startHtml5Scanner();
+  }
+}
+
+async function startNativeScanner() {
+  try {
+    nativeStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+    let vid = document.getElementById('native-video');
+    if (!vid) {
+      vid = document.createElement('video');
+      vid.id = 'native-video';
+      vid.setAttribute('playsinline', '');
+      vid.style.cssText = 'width:100%;border-radius:8px;';
+      document.getElementById('qr-reader').appendChild(vid);
+    }
+    vid.srcObject = nativeStream;
+    await vid.play();
+
+    const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'qr_code'] });
+    scanner = { type: 'native' };
+    document.getElementById('scan-hint').textContent = 'バーコード（ISBN）をカメラに向けてください';
+
+    const loop = async () => {
+      if (!scanner) return;
+      try {
+        const codes = await detector.detect(vid);
+        if (codes.length) { onScan(codes[0].rawValue); return; }
+      } catch (_) {}
+      nativeScanLoop = requestAnimationFrame(loop);
+    };
+    nativeScanLoop = requestAnimationFrame(loop);
+  } catch (e) {
+    console.warn('Native scanner failed, fallback to html5-qrcode:', e);
+    await startHtml5Scanner();
+  }
+}
+
+async function startHtml5Scanner() {
   try {
     scanner = new Html5Qrcode('qr-reader');
     await scanner.start(
       { facingMode: 'environment' },
       {
-        fps: 10,
-        qrbox: { width: 250, height: 120 },
+        fps: 15,
+        qrbox: { width: 280, height: 160 },
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.EAN_8,
           Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.QR_CODE
         ]
       },
       onScan,
@@ -1160,22 +1213,40 @@ async function startScanner() {
     document.getElementById('scan-hint').textContent = 'バーコード（ISBN）をカメラに向けてください';
   } catch {
     document.getElementById('scan-hint').textContent =
-      'カメラにアクセスできません。ブラウザの許可設定を確認してください。';
+      'カメラにアクセスできません。下のISBN手動入力をお使いください。';
   }
 }
 
 async function stopScanner() {
   if (!scanner) return;
-  try { await scanner.stop(); scanner.clear(); } catch (_) {}
+  if (scanner.type === 'native') {
+    if (nativeScanLoop) cancelAnimationFrame(nativeScanLoop);
+    if (nativeStream) nativeStream.getTracks().forEach(t => t.stop());
+    nativeScanLoop = null; nativeStream = null;
+    const v = document.getElementById('native-video');
+    if (v) v.remove();
+  } else {
+    try { await scanner.stop(); scanner.clear(); } catch (_) {}
+  }
   scanner = null;
 }
 
 async function onScan(code) {
   await stopScanner();
   document.getElementById('scan-ok').classList.add('show');
-  toast('バーコード検出。書籍情報を検索中...');
-
   const isbn = code.replace(/[^0-9X]/gi, '');
+  await applyISBN(isbn);
+}
+
+async function searchISBNManual() {
+  const isbn = document.getElementById('isbn-manual').value.replace(/[^0-9X]/gi, '');
+  if (!isbn) { toast('ISBNを入力してください'); return; }
+  toast('書籍情報を検索中...');
+  await applyISBN(isbn);
+  document.getElementById('isbn-manual').value = '';
+}
+
+async function applyISBN(isbn) {
   try {
     const info = await fetchISBN(isbn);
     if (info) {
@@ -1195,20 +1266,40 @@ async function onScan(code) {
 }
 
 async function fetchISBN(isbn) {
-  const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-  const data = await res.json();
-  if (!data.items?.length) return null;
+  // OpenBD（日本書籍に強い）を優先
+  try {
+    const res  = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
+    const data = await res.json();
+    if (data[0]) {
+      const s = data[0].summary;
+      return {
+        title:    s.title   || '',
+        author:   s.author  || '',
+        category: s.series  || '',
+        thumb:    s.cover   || null,
+        price:    s.price ? String(s.price).replace(/[^0-9]/g, '') : ''
+      };
+    }
+  } catch (_) {}
 
-  const vol  = data.items[0];
-  const info = vol.volumeInfo;
-  const sale = vol.saleInfo;
-  return {
-    title:    info.title || '',
-    author:   (info.authors || []).join(', '),
-    category: (info.categories || [])[0] || '',
-    thumb:    info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
-    price:    sale?.listPrice?.amount || ''
-  };
+  // フォールバック: Google Books API
+  try {
+    const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+    const data = await res.json();
+    if (data.items?.length) {
+      const info = data.items[0].volumeInfo;
+      const sale = data.items[0].saleInfo;
+      return {
+        title:    info.title || '',
+        author:   (info.authors || []).join(', '),
+        category: (info.categories || [])[0] || '',
+        thumb:    info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
+        price:    sale?.listPrice?.amount || ''
+      };
+    }
+  } catch (_) {}
+
+  return null;
 }
 
 /* ════════════════════════════════════════
