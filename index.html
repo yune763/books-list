@@ -1269,6 +1269,20 @@ async function applyISBN(isbn) {
   }
 }
 
+function cleanAuthor(raw) {
+  if (!raw) return '';
+  return raw
+    .replace(/,?\s*\d{4}[-－]?\d{0,4}/g, '')  // 年号を除去（例: 1952- / 1952-2020）
+    .replace(/\s*[\/／]\s*\d{4}[-－]?\d{0,4}/g, '')
+    .replace(/[\[［【].*?[\]］】]/g, '')         // 括弧内を除去
+    .replace(/\s*(著|編著|編|訳|監修|イラスト|絵|原著|文)\b/g, '')  // 役割語を除去
+    .split(/[,，]/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .join(', ')
+    .trim();
+}
+
 async function fetchISBN(isbn) {
   // OpenBD（日本書籍に強い）を優先
   try {
@@ -1277,10 +1291,10 @@ async function fetchISBN(isbn) {
     if (data[0]) {
       const s = data[0].summary;
       return {
-        title:    s.title   || '',
-        author:   s.author  || '',
-        category: s.series  || '',
-        thumb:    s.cover   || null,
+        title:    s.title              || '',
+        author:   cleanAuthor(s.author),
+        category: s.series             || '',
+        thumb:    s.cover              || null,
         price:    s.price ? String(s.price).replace(/[^0-9]/g, '') : ''
       };
     }
@@ -1295,7 +1309,7 @@ async function fetchISBN(isbn) {
       const sale = data.items[0].saleInfo;
       return {
         title:    info.title || '',
-        author:   (info.authors || []).join(', '),
+        author:   cleanAuthor((info.authors || []).join(', ')),
         category: (info.categories || [])[0] || '',
         thumb:    info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
         price:    sale?.listPrice?.amount || ''
