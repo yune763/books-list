@@ -593,16 +593,6 @@
       padding: 10px 12px; line-height: 1.6; margin-bottom: 12px;
     }
 
-    /* ── Photo Scan Button ── */
-    .btn-photo-scan {
-      width: 100%; padding: 16px;
-      background: linear-gradient(135deg, var(--header-from) 0%, var(--header-to) 100%);
-      border: none; border-radius: 12px;
-      font-family: inherit; font-size: 15px; font-weight: 700;
-      color: #5D4037; cursor: pointer; touch-action: manipulation;
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
-    }
-
     /* ── Author Header ── */
     .author-head {
       grid-column: 1 / -1;
@@ -731,14 +721,9 @@
     </div>
 
     <div class="scanner-wrap" id="scanner-wrap" style="display:none">
-      <!-- 写真撮影ボタン -->
-      <input type="file" accept="image/*" capture="environment" id="barcode-photo" style="display:none" onchange="scanPhotoFile(event)">
-      <button class="btn-photo-scan" onclick="document.getElementById('barcode-photo').click()">
-        📷　バーコードを撮影して読み取る
-      </button>
-      <img id="scan-preview" style="display:none;width:100%;border-radius:8px;margin-top:10px" alt="">
-      <p class="scan-hint" id="scan-hint">書籍裏面のバーコードを撮影してください</p>
-      <div class="scan-ok" id="scan-ok">検出完了。書籍情報を検索中...</div>
+      <div id="qr-reader"></div>
+      <p class="scan-hint" id="scan-hint">バーコード（ISBN）をカメラに向けてください</p>
+      <div class="scan-ok" id="scan-ok">読み取り完了。書籍情報を検索中...</div>
 
       <!-- ISBN手動入力 -->
       <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
@@ -1159,64 +1144,45 @@ function pickStatus(s) {
 }
 
 /* ════════════════════════════════════════
-   Barcode Scanner (photo-based)
+   Barcode Scanner
 ════════════════════════════════════════ */
-function startScanner() {
-  document.getElementById('scan-hint').textContent = '書籍裏面のバーコードを撮影してください';
+async function startScanner() {
+  document.getElementById('scan-hint').textContent = 'カメラを起動中...';
   document.getElementById('scan-ok').classList.remove('show');
-  const preview = document.getElementById('scan-preview');
-  if (preview) preview.style.display = 'none';
-  const input = document.getElementById('barcode-photo');
-  if (input) input.value = '';
+  try {
+    scanner = new Html5Qrcode('qr-reader');
+    await scanner.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 120 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      },
+      onScan,
+      () => {}
+    );
+    document.getElementById('scan-hint').textContent = 'バーコード（ISBN）をカメラに向けてください';
+  } catch {
+    document.getElementById('scan-hint').textContent =
+      'カメラにアクセスできません。下のISBN欄から直接入力してください。';
+  }
 }
 
-function stopScanner() { /* photo-based: no active stream to stop */ }
+async function stopScanner() {
+  if (!scanner) return;
+  try { await scanner.stop(); scanner.clear(); } catch (_) {}
+  scanner = null;
+}
 
-async function scanPhotoFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // プレビュー表示
-  const preview = document.getElementById('scan-preview');
-  preview.src = URL.createObjectURL(file);
-  preview.style.display = 'block';
-  document.getElementById('scan-hint').textContent = 'バーコードを検出中...';
-
-  let isbn = null;
-
-  // ① ネイティブ BarcodeDetector（Chrome/Android/Safari17+）
-  if ('BarcodeDetector' in window) {
-    try {
-      const bmp = await createImageBitmap(file);
-      const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a'] });
-      const codes = await det.detect(bmp);
-      if (codes.length) isbn = codes[0].rawValue;
-    } catch (_) {}
-  }
-
-  // ② html5-qrcode の scanFile（フォールバック）
-  if (!isbn) {
-    try {
-      const tmpDiv = document.createElement('div');
-      tmpDiv.id = 'qr-tmp-' + Date.now();
-      tmpDiv.style.display = 'none';
-      document.body.appendChild(tmpDiv);
-      const tmpScanner = new Html5Qrcode(tmpDiv.id);
-      isbn = await tmpScanner.scanFile(file, false);
-      document.body.removeChild(tmpDiv);
-    } catch (_) {}
-  }
-
-  if (isbn) {
-    document.getElementById('scan-ok').classList.add('show');
-    document.getElementById('scan-hint').textContent = '検出成功！書籍情報を取得中...';
-    await applyISBN(isbn.replace(/[^0-9X]/gi, ''));
-  } else {
-    document.getElementById('scan-hint').textContent =
-      '検出できませんでした。バーコードが鮮明に写るよう撮り直すか、下のISBN欄に直接入力してください。';
-    toast('バーコードを検出できませんでした');
-  }
-  event.target.value = '';
+async function onScan(code) {
+  await stopScanner();
+  document.getElementById('scan-ok').classList.add('show');
+  await applyISBN(code.replace(/[^0-9X]/gi, ''));
 }
 
 async function searchISBNManual() {
