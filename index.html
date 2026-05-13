@@ -862,6 +862,15 @@ function initFirebase() {
     firebase.initializeApp(FIREBASE_CONFIG);
     db   = firebase.firestore();
     auth = firebase.auth();
+
+    // リダイレクトログイン後の結果を処理
+    auth.getRedirectResult().catch(e => {
+      if (e.code && e.code !== 'auth/no-current-user') {
+        console.error('Redirect result error:', e);
+        toast('ログインに失敗しました。時間をおいて再度お試しください。');
+      }
+    });
+
     auth.onAuthStateChanged(user => {
       currentUser = user;
       updateAuthUI();
@@ -906,9 +915,9 @@ function subscribe() {
 
 function signIn() {
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e => {
+  auth.signInWithRedirect(provider).catch(e => {
     console.error('Sign in error:', e);
-    toast('ログインに失敗しました。ポップアップがブロックされていないか確認してください。');
+    toast('ログインに失敗しました。時間をおいて再度お試しください。');
   });
 }
 
