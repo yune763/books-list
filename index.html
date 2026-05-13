@@ -593,6 +593,14 @@
       padding: 10px 12px; line-height: 1.6; margin-bottom: 12px;
     }
 
+    /* ── Author Header ── */
+    .author-head {
+      grid-column: 1 / -1;
+      font-size: 13px; font-weight: 700;
+      color: var(--text-sub); padding: 14px 4px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
     /* ── Google Login ── */
     .btn-login {
       display: flex; align-items: center; gap: 7px;
@@ -1019,19 +1027,32 @@ function renderBooks() {
     return;
   }
 
-  const totalPrice = list.reduce((s, b) => s + (Number(b.price) || 0), 0);
+  // 著者名順にソート（著者不明は末尾）
+  const sorted = [...list].sort((a, b) => {
+    const aa = a.author || 'zzz';
+    const bb = b.author || 'zzz';
+    return aa.localeCompare(bb, 'ja');
+  });
+
+  const totalPrice = sorted.reduce((s, b) => s + (Number(b.price) || 0), 0);
   const summaryHtml = `<div class="summary">
-    ${list.length} 冊　|　合計 <span>¥${totalPrice.toLocaleString()}</span>
+    ${sorted.length} 冊　|　合計 <span>¥${totalPrice.toLocaleString()}</span>
   </div>`;
 
-  grid.innerHTML = summaryHtml + list.map(b => `
+  let prevAuthor = null;
+  const cardsHtml = sorted.map(b => {
+    const author = b.author || '著者不明';
+    const header = author !== prevAuthor
+      ? `<div class="author-head">${esc(author)}</div>`
+      : '';
+    prevAuthor = author;
+    return header + `
     <div class="card" data-status="${b.status}">
       <div class="cover">
         ${b.thumb ? `<img src="${esc(b.thumb)}" alt="" onerror="this.style.display='none'">` : ''}
       </div>
       <div class="info">
         <div class="info-title">${esc(b.title)}</div>
-        <div class="info-author">${esc(b.author || '著者不明')}</div>
         <div class="info-meta">
           ${b.category ? `<span class="chip">${esc(b.category)}</span>` : ''}
           ${b.price    ? `<span class="price">¥${Number(b.price).toLocaleString()}</span>` : ''}
@@ -1041,8 +1062,10 @@ function renderBooks() {
         <button class="btn-icon btn-edit"   onclick="editBook('${b.id}')">編集</button>
         <button class="btn-icon btn-delete" onclick="deleteBook('${b.id}')">削除</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+
+  grid.innerHTML = summaryHtml + cardsHtml;
 }
 
 function esc(s) {
