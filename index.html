@@ -780,13 +780,13 @@
         background:var(--bg); border:1.5px solid var(--border); border-radius:10px;
         font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
         cursor:pointer; touch-action:manipulation;
-      ">🖼 画像から登録</button>
+      ">画像から登録</button>
       <button type="button" onclick="searchCoverByTitle()" style="
         flex:1; padding:10px 6px;
         background:var(--bg); border:1.5px solid var(--border); border-radius:10px;
         font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
         cursor:pointer; touch-action:manipulation;
-      ">🔍 タイトルで検索</button>
+      ">タイトルで検索</button>
     </div>
 
     <div class="form-row">
@@ -861,12 +861,12 @@
       <p class="settings-desc">
         書籍データをコードとして書き出し・読み込みできます。
       </p>
-      <button class="btn-transfer-export" onclick="exportData()">📋 バックアップコードをコピー</button>
+      <button class="btn-transfer-export" onclick="exportData()">バックアップコードをコピー</button>
       <div class="form-row" style="margin-top:12px;margin-bottom:0">
         <label>コードから復元</label>
         <div class="transfer-code-box">
           <textarea class="transfer-code-area" id="import-code" placeholder="バックアップコードを貼り付け"></textarea>
-          <button class="btn-transfer-import" onclick="importData()">⬇ 復元する</button>
+          <button class="btn-transfer-import" onclick="importData()">復元する</button>
         </div>
       </div>
     </div>
@@ -1578,17 +1578,6 @@ function extractOpenBDCover(item) {
   return null;
 }
 
-function tryImage(url) {
-  return new Promise(resolve => {
-    if (!url) return resolve(null);
-    const img = new Image();
-    img.onload  = () => resolve(url);
-    img.onerror = () => resolve(null);
-    setTimeout(() => resolve(null), 4000);
-    img.src = url;
-  });
-}
-
 async function fetchISBN(isbn) {
   // 両APIを並列取得
   const [obRes, gbRes] = await Promise.allSettled([
@@ -1630,27 +1619,9 @@ async function fetchISBN(isbn) {
   const base = ob || gb;
   const sub  = gb || ob;
 
-  // 表紙候補URL（優先順）
-  const thumbCandidates = [
-    base.thumb,
-    sub.thumb,
-    `https://cover.openbd.jp/${isbn}.jpg`,          // OpenBD CDN直接
-    `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`, // 国立国会図書館
-  ].filter(Boolean);
-
-  // 並列で画像を試し、最初に読み込めたものを採用
-  const thumb = await new Promise(resolve => {
-    let done = false;
-    let remaining = thumbCandidates.length;
-    if (!remaining) return resolve(null);
-    thumbCandidates.forEach(url => {
-      tryImage(url).then(result => {
-        remaining--;
-        if (result && !done) { done = true; resolve(result); }
-        else if (remaining === 0 && !done) resolve(null);
-      });
-    });
-  });
+  // 表紙URL：取得できたものを優先順で使う（画像プリロードなし）
+  const thumb = base.thumb || sub.thumb
+    || `https://cover.openbd.jp/${isbn}.jpg` || null;
 
   return {
     title:     base.title     || sub.title     || '',
