@@ -740,10 +740,10 @@
     <div class="dup-warn" id="dup-warn"></div>
 
     <!-- 表紙プレビュー -->
-    <div id="cover-preview-wrap" style="display:none; align-items:center; gap:10px; padding:8px 10px; background:var(--bg); border-radius:10px; margin-bottom:10px;">
-      <img id="cover-preview-img" style="width:44px;height:60px;object-fit:cover;border-radius:4px;border-left:4px solid #C8B0A4;flex-shrink:0" alt="">
-      <span style="flex:1;font-size:12px;color:var(--text-sub)">表紙を取得しました</span>
-      <button onclick="clearCover()" style="padding:4px 8px;background:none;border:1.5px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-muted);cursor:pointer;font-family:inherit;">✕ クリア</button>
+    <div id="cover-preview-wrap" style="display:none; flex-direction:column; align-items:center; gap:8px; padding:14px 10px; background:var(--bg); border-radius:12px; margin-bottom:12px; text-align:center;">
+      <img id="cover-preview-img" style="width:72px;height:96px;object-fit:cover;border-radius:4px 6px 6px 4px;border-left:5px solid #C8B0A4;box-shadow:0 4px 12px rgba(0,0,0,0.15);" alt="">
+      <span style="font-size:12px;color:var(--text-sub);font-weight:600">表紙プレビュー</span>
+      <button onclick="clearCover()" style="padding:4px 12px;background:none;border:1.5px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-muted);cursor:pointer;font-family:inherit;">✕ クリア</button>
     </div>
 
     <div class="form-row">
@@ -1133,39 +1133,38 @@ async function searchCoverByTitle() {
   if (!title) { toast('タイトルを入力してください'); return; }
   toast('表紙を検索中...');
 
-  const [obRes, gbRes] = await Promise.allSettled([
-    fetch(`https://api.openbd.jp/v1/search?title=${encodeURIComponent(title)}&limit=5`).then(r => r.json()),
-    fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&langRestrict=ja&maxResults=5`).then(r => r.json()),
-  ]);
+  let thumb = null;
 
-  const candidates = [];
-
-  if (obRes.status === 'fulfilled' && Array.isArray(obRes.value)) {
-    for (const item of obRes.value) {
-      if (item.summary?.cover) candidates.push(item.summary.cover);
-      if (item.summary?.isbn)  candidates.push(`https://cover.openbd.jp/${item.summary.isbn}.jpg`);
+  // ① Google Books（幅広く検索）
+  try {
+    const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title)}&maxResults=10`);
+    const data = await res.json();
+    if (data.items?.length) {
+      for (const vol of data.items) {
+        const lnk = vol.volumeInfo?.imageLinks || {};
+        const url = (lnk.thumbnail || lnk.smallThumbnail || '').replace('http://', 'https://');
+        if (url) { thumb = url; break; }
+      }
     }
-  }
+  } catch (_) {}
 
-  if (gbRes.status === 'fulfilled' && gbRes.value?.items?.length) {
-    for (const vol of gbRes.value.items) {
-      const lnk = vol.volumeInfo?.imageLinks || {};
-      const url = (lnk.thumbnail || lnk.smallThumbnail || '').replace('http://', 'https://');
-      if (url) candidates.push(url);
-    }
+  // ② OpenBD検索（タイトル検索）
+  if (!thumb) {
+    try {
+      const res  = await fetch(`https://api.openbd.jp/v1/search?title=${encodeURIComponent(title)}&limit=5`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const url = item.summary?.cover || '';
+          if (url) { thumb = url; break; }
+          if (item.summary?.isbn) {
+            thumb = `https://cover.openbd.jp/${item.summary.isbn}.jpg`;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
   }
-
-  const thumb = await new Promise(resolve => {
-    let done = false, remaining = candidates.length;
-    if (!remaining) return resolve(null);
-    candidates.forEach(url => {
-      tryImage(url).then(r => {
-        remaining--;
-        if (r && !done) { done = true; resolve(r); }
-        else if (remaining === 0 && !done) resolve(null);
-      });
-    });
-  });
 
   if (thumb) {
     setPendingThumb(thumb);
@@ -1201,7 +1200,7 @@ function closeBookModal() {
   stopScanner();
   document.getElementById('book-overlay').classList.remove('open');
   document.body.style.overflow = '';
-  pendingThumb = null;
+  setPendingThumb(null);
 }
 
 function openSettingsModal() {
