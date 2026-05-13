@@ -739,10 +739,23 @@
 
     <div class="dup-warn" id="dup-warn"></div>
 
+    <!-- 表紙プレビュー -->
+    <div id="cover-preview-wrap" style="display:none; align-items:center; gap:10px; padding:8px 10px; background:var(--bg); border-radius:10px; margin-bottom:10px;">
+      <img id="cover-preview-img" style="width:44px;height:60px;object-fit:cover;border-radius:4px;border-left:4px solid #C8B0A4;flex-shrink:0" alt="">
+      <span style="flex:1;font-size:12px;color:var(--text-sub)">表紙を取得しました</span>
+      <button onclick="clearCover()" style="padding:4px 8px;background:none;border:1.5px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-muted);cursor:pointer;font-family:inherit;">✕ クリア</button>
+    </div>
+
     <div class="form-row">
       <label>書籍タイトル <span style="color:#C62828">*</span></label>
       <input type="text" id="f-title" placeholder="タイトルを入力" autocomplete="off">
     </div>
+    <button type="button" onclick="searchCoverByTitle()" style="
+      width:100%; padding:10px; margin-bottom:12px;
+      background:var(--bg); border:1.5px solid var(--border); border-radius:10px;
+      font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
+      cursor:pointer; touch-action:manipulation; text-align:center;
+    ">🔍 タイトルで表紙を検索</button>
     <div class="form-row">
       <label>著者名</label>
       <input type="text" id="f-author" placeholder="著者名を入力" autocomplete="off">
@@ -1098,15 +1111,81 @@ function esc(s) {
 /* ════════════════════════════════════════
    Book Modal
 ════════════════════════════════════════ */
+function setPendingThumb(url) {
+  pendingThumb = url || null;
+  const wrap = document.getElementById('cover-preview-wrap');
+  const img  = document.getElementById('cover-preview-img');
+  if (url) {
+    img.src = url;
+    wrap.style.display = 'flex';
+  } else {
+    wrap.style.display = 'none';
+    img.src = '';
+  }
+}
+
+function clearCover() {
+  setPendingThumb(null);
+}
+
+async function searchCoverByTitle() {
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) { toast('タイトルを入力してください'); return; }
+  toast('表紙を検索中...');
+
+  const [obRes, gbRes] = await Promise.allSettled([
+    fetch(`https://api.openbd.jp/v1/search?title=${encodeURIComponent(title)}&limit=5`).then(r => r.json()),
+    fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}&langRestrict=ja&maxResults=5`).then(r => r.json()),
+  ]);
+
+  const candidates = [];
+
+  if (obRes.status === 'fulfilled' && Array.isArray(obRes.value)) {
+    for (const item of obRes.value) {
+      if (item.summary?.cover) candidates.push(item.summary.cover);
+      if (item.summary?.isbn)  candidates.push(`https://cover.openbd.jp/${item.summary.isbn}.jpg`);
+    }
+  }
+
+  if (gbRes.status === 'fulfilled' && gbRes.value?.items?.length) {
+    for (const vol of gbRes.value.items) {
+      const lnk = vol.volumeInfo?.imageLinks || {};
+      const url = (lnk.thumbnail || lnk.smallThumbnail || '').replace('http://', 'https://');
+      if (url) candidates.push(url);
+    }
+  }
+
+  const thumb = await new Promise(resolve => {
+    let done = false, remaining = candidates.length;
+    if (!remaining) return resolve(null);
+    candidates.forEach(url => {
+      tryImage(url).then(r => {
+        remaining--;
+        if (r && !done) { done = true; resolve(r); }
+        else if (remaining === 0 && !done) resolve(null);
+      });
+    });
+  });
+
+  if (thumb) {
+    setPendingThumb(thumb);
+    toast('表紙を取得しました');
+  } else {
+    toast('表紙が見つかりませんでした');
+  }
+}
+
 function openBookModal(book) {
   editingId    = book ? book.id : null;
-  pendingThumb = null;
   document.getElementById('modal-title').textContent = book ? '書籍を編集' : '書籍を追加';
 
-  document.getElementById('f-title').value    = book?.title    || '';
-  document.getElementById('f-author').value   = book?.author   || '';
-  document.getElementById('f-category').value = book?.category || '';
+  document.getElementById('f-title').value     = book?.title     || '';
+  document.getElementById('f-author').value    = book?.author    || '';
+  document.getElementById('f-category').value  = book?.category  || '';
   document.getElementById('f-publisher').value = book?.publisher || '';
+
+  // 表紙プレビューをリセット（編集時は既存の表紙を表示）
+  setPendingThumb(book?.thumb || null);
 
   pickStatus(book?.status || currentTab);
   setMode('manual');
@@ -1265,7 +1344,7 @@ async function applyISBN(isbn) {
       document.getElementById('f-author').value   = info.author   || '';
       document.getElementById('f-category').value = info.category || '';
       if (info.publisher) document.getElementById('f-publisher').value = info.publisher;
-      pendingThumb = info.thumb || null;
+      setPendingThumb(info.thumb || null);
       toast('書籍情報を自動入力しました');
       checkDuplicate();
     } else {
