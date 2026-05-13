@@ -1294,6 +1294,48 @@ function cleanAuthor(raw) {
   return merged.join(', ').trim();
 }
 
+const GENRE_MAP = {
+  'fantasy': 'ファンタジー', 'ファンタジー': 'ファンタジー',
+  'mystery': 'ミステリー', 'ミステリ': 'ミステリー', '推理': 'ミステリー', 'ハードボイルド': 'ミステリー',
+  'romance': '恋愛', '恋愛': '恋愛', 'ロマンス': '恋愛',
+  'thriller': 'サスペンス', 'サスペンス': 'サスペンス',
+  'horror': 'ホラー', 'ホラー': 'ホラー',
+  'science fiction': 'SF', 'sci-fi': 'SF', 'sf': 'SF',
+  'fiction': '小説', '小説': '小説', '時代小説': '時代小説', '歴史小説': '歴史小説',
+  'manga': 'マンガ', 'comics': 'マンガ', 'マンガ': 'マンガ', '漫画': 'マンガ',
+  'light novel': 'ライトノベル', 'ライトノベル': 'ライトノベル',
+  'juvenile': 'ジュニア', 'young adult': 'YA', '児童': 'ジュニア',
+  'business': 'ビジネス', 'ビジネス': 'ビジネス',
+  'history': '歴史', '歴史': '歴史',
+  'biography': '伝記', 'autobiography': '自伝',
+  'cooking': '料理', '料理': '料理',
+  'philosophy': '哲学', '哲学': '哲学',
+  'psychology': '心理学', '心理学': '心理学',
+  'self-help': '自己啓発', '自己啓発': '自己啓発',
+  'art': 'アート', 'travel': '旅行', '旅行': '旅行',
+  'health': '健康', '健康': '健康', 'sports': 'スポーツ',
+};
+
+function mapGenre(text) {
+  if (!text) return '';
+  const lower = text.toLowerCase().trim();
+  for (const [key, val] of Object.entries(GENRE_MAP)) {
+    if (lower.includes(key.toLowerCase())) return val;
+  }
+  // 日本語テキストで短ければそのまま使用
+  if (/[^\x00-\x7F]/.test(text) && text.length <= 10) return text;
+  return '';
+}
+
+function extractOpenBDGenre(item) {
+  const subjects = item.onix?.DescriptiveDetail?.Subject || [];
+  for (const sub of subjects) {
+    const mapped = mapGenre(sub.SubjectHeadingText || '');
+    if (mapped) return mapped;
+  }
+  return '';
+}
+
 async function fetchISBN(isbn) {
   // OpenBD（日本書籍に強い）を優先
   try {
@@ -1302,10 +1344,10 @@ async function fetchISBN(isbn) {
     if (data[0]) {
       const s = data[0].summary;
       return {
-        title:    s.title              || '',
+        title:    s.title                    || '',
         author:   cleanAuthor(s.author),
-        category: s.series             || '',
-        thumb:    s.cover              || null,
+        category: extractOpenBDGenre(data[0]),
+        thumb:    s.cover                    || null,
         price:    s.price ? String(s.price).replace(/[^0-9]/g, '') : ''
       };
     }
@@ -1318,10 +1360,11 @@ async function fetchISBN(isbn) {
     if (data.items?.length) {
       const info = data.items[0].volumeInfo;
       const sale = data.items[0].saleInfo;
+      const rawCat = (info.categories || []).join(' ');
       return {
         title:    info.title || '',
         author:   cleanAuthor((info.authors || []).join(', ')),
-        category: (info.categories || [])[0] || '',
+        category: mapGenre(rawCat),
         thumb:    info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
         price:    sale?.listPrice?.amount || ''
       };
