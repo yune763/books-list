@@ -721,7 +721,11 @@
     </div>
 
     <div class="scanner-wrap" id="scanner-wrap" style="display:none">
-      <div id="qr-reader"></div>
+      <!-- ライブカメラ映像 -->
+      <div id="qr-reader" style="position:relative;border-radius:10px;overflow:hidden;background:#000;min-height:160px">
+        <video id="scan-video" playsinline style="width:100%;display:block;border-radius:10px"></video>
+        <div id="scan-line" style="display:none;position:absolute;left:10%;right:10%;height:2px;background:rgba(200,100,100,.8);top:50%;box-shadow:0 0 6px rgba(200,100,100,.6)"></div>
+      </div>
       <p class="scan-hint" id="scan-hint">バーコード（ISBN）をカメラに向けてください</p>
       <div class="scan-ok" id="scan-ok">読み取り完了。書籍情報を検索中...</div>
 
@@ -1146,43 +1150,96 @@ function pickStatus(s) {
 /* ════════════════════════════════════════
    Barcode Scanner
 ════════════════════════════════════════ */
+let liveStream = null;
+let liveLoop   = null;
+
+function scanHint(msg) { document.getElementById('scan-hint').textContent = msg; }
+
 async function startScanner() {
-  document.getElementById('scan-hint').textContent = 'カメラを起動中...';
+  scanHint('カメラを起動中...');
   document.getElementById('scan-ok').classList.remove('show');
-  try {
-    scanner = new Html5Qrcode('qr-reader');
-    await scanner.start(
-      { facingMode: 'environment' },
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 120 },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.QR_CODE
-        ]
-      },
-      onScan,
-      () => {}
-    );
-    document.getElementById('scan-hint').textContent = 'バーコード（ISBN）をカメラに向けてください';
-  } catch {
-    document.getElementById('scan-hint').textContent =
-      'カメラにアクセスできません。下のISBN欄から直接入力してください。';
+  document.getElementById('scan-line').style.display = 'none';
+
+  // ① ネイティブ BarcodeDetector（Chrome / Safari 17+ / Edge）
+  if ('BarcodeDetector' in window) {
+    try {
+      await startLiveScanner();
+      return;
+    } catch (e) { console.warn('BarcodeDetector live failed:', e); }
   }
+
+  // ② html5-qrcode フォールバック
+  try {
+    await startHtml5Scanner();
+    return;
+  } catch (e) { console.warn('html5-qrcode failed:', e); }
+
+  scanHint('カメラを起動できませんでした。下のISBN欄から直接入力してください。');
+}
+
+async function startLiveScanner() {
+  liveStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+  });
+  const video = document.getElementById('scan-video');
+  video.srcObject = liveStream;
+  await video.play();
+
+  const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a'] });
+  scanner = { type: 'native' };
+  document.getElementById('scan-line').style.display = 'block';
+  scanHint('バーコードをカメラの中央に向けてください');
+
+  const tick = async () => {
+    if (!scanner) return;
+    try {
+      const codes = await detector.detect(video);
+      if (codes.length) {
+        const raw = codes[0].rawValue.replace(/[^0-9X]/gi, '');
+        await stopScanner();
+        document.getElementById('scan-ok').classList.add('show');
+        await applyISBN(raw);
+        return;
+      }
+    } catch (_) {}
+    liveLoop = requestAnimationFrame(tick);
+  };
+  liveLoop = requestAnimationFrame(tick);
+}
+
+async function startHtml5Scanner() {
+  scanner = new Html5Qrcode('qr-reader');
+  await scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 120 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+      ]
+    },
+    async code => {
+      await stopScanner();
+      document.getElementById('scan-ok').classList.add('show');
+      await applyISBN(code.replace(/[^0-9X]/gi, ''));
+    },
+    () => {}
+  );
+  scanHint('バーコード（ISBN）をカメラに向けてください');
 }
 
 async function stopScanner() {
   if (!scanner) return;
-  try { await scanner.stop(); scanner.clear(); } catch (_) {}
+  if (scanner.type === 'native') {
+    if (liveLoop) { cancelAnimationFrame(liveLoop); liveLoop = null; }
+    if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+    const video = document.getElementById('scan-video');
+    if (video) { video.srcObject = null; }
+    document.getElementById('scan-line').style.display = 'none';
+  } else {
+    try { await scanner.stop(); scanner.clear(); } catch (_) {}
+  }
   scanner = null;
-}
-
-async function onScan(code) {
-  await stopScanner();
-  document.getElementById('scan-ok').classList.add('show');
-  await applyISBN(code.replace(/[^0-9X]/gi, ''));
 }
 
 async function searchISBNManual() {
