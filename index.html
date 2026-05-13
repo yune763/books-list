@@ -1326,51 +1326,125 @@ function mapGenre(text) {
   return '';
 }
 
+// NDC分類コード → ジャンル対応表
+const NDC_MAP = {
+  '007':'IT・コンピュータ','019':'読書','031':'百科事典',
+  '141':'心理学','143':'心理学','159':'自己啓発',
+  '210':'歴史','220':'アジア史','230':'ヨーロッパ史',
+  '280':'伝記','289':'伝記',
+  '290':'旅行','291':'旅行',
+  '302':'社会','304':'社会評論',
+  '310':'政治','320':'法律',
+  '330':'経済','335':'ビジネス','336':'ビジネス','337':'金融',
+  '361':'社会学','367':'家族・生活',
+  '370':'教育','379':'教育',
+  '410':'数学','420':'物理','430':'化学','440':'天文',
+  '460':'生物','470':'植物','480':'動物',
+  '490':'医学','491':'医学','498':'健康・美容',
+  '510':'工学','540':'電気','548':'コンピュータ',
+  '590':'家政学','596':'料理','597':'料理',
+  '720':'美術','726':'マンガ','727':'マンガ',
+  '760':'音楽','770':'演劇・映画',
+  '780':'スポーツ','783':'スポーツ',
+  '800':'語学',
+  '910':'日本文学','913':'小説','914':'エッセイ',
+  '916':'ノンフィクション','918':'文学全集',
+  '920':'中国文学','930':'海外小説',
+  '931':'英文学','932':'アメリカ文学',
+  '933':'フランス文学','934':'ドイツ文学',
+  '940':'ロシア文学','950':'フランス文学',
+};
+
 function extractOpenBDGenre(item) {
   const subjects = item.onix?.DescriptiveDetail?.Subject || [];
+
+  // ① フリーキーワード（SubjectSchemeIdentifier=26）を優先
+  for (const sub of subjects) {
+    if (sub.SubjectSchemeIdentifier === '26') {
+      const mapped = mapGenre(sub.SubjectHeadingText || '');
+      if (mapped) return mapped;
+    }
+  }
+  // ② 任意のSubjectHeadingTextを試す
   for (const sub of subjects) {
     const mapped = mapGenre(sub.SubjectHeadingText || '');
     if (mapped) return mapped;
   }
+  // ③ NDCコードで判定
+  for (const sub of subjects) {
+    if (sub.SubjectSchemeIdentifier === '78') {
+      const code = (sub.SubjectCode || '').replace('.', '').substring(0, 3);
+      if (NDC_MAP[code]) return NDC_MAP[code];
+      // 上2桁でも試す
+      if (NDC_MAP[code.substring(0, 2)]) return NDC_MAP[code.substring(0, 2)];
+    }
+  }
   return '';
 }
 
-async function fetchISBN(isbn) {
-  // OpenBD（日本書籍に強い）を優先
-  try {
-    const res  = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
-    const data = await res.json();
-    if (data[0]) {
-      const s = data[0].summary;
-      return {
-        title:     s.title                    || '',
-        author:    cleanAuthor(s.author),
-        category:  extractOpenBDGenre(data[0]),
-        publisher: s.publisher               || '',
-        thumb:     s.cover                   || null
-      };
+function extractOpenBDCover(item) {
+  // summary.cover を優先
+  if (item.summary?.cover) return item.summary.cover;
+  // ONIX SupportingResource（表紙画像）を探す
+  const resources = item.onix?.CollateralDetail?.SupportingResource || [];
+  for (const res of resources) {
+    if (res.ResourceContentType === '01') {
+      for (const ver of (res.ResourceVersion || [])) {
+        if (ver.ResourceLink) return ver.ResourceLink;
+      }
     }
-  } catch (_) {}
-
-  // フォールバック: Google Books API
-  try {
-    const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-    const data = await res.json();
-    if (data.items?.length) {
-      const info = data.items[0].volumeInfo;
-      const sale = data.items[0].saleInfo;
-      const rawCat = (info.categories || []).join(' ');
-      return {
-        title:     info.title || '',
-        author:    cleanAuthor((info.authors || []).join(', ')),
-        category:  mapGenre(rawCat),
-        publisher: info.publisher || '',
-        thumb:     info.imageLinks?.thumbnail?.replace('http://', 'https://') || null
-      };
-    }
-  } catch (_) {}
-
+  }
   return null;
+}
+
+async function fetchISBN(isbn) {
+  // 両APIを並列取得して補完し合う
+  const [obRes, gbRes] = await Promise.allSettled([
+    fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`).then(r => r.json()),
+    fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`).then(r => r.json()),
+  ]);
+
+  let ob = null, gb = null;
+
+  if (obRes.status === 'fulfilled' && obRes.value?.[0]) {
+    const item = obRes.value[0];
+    const s = item.summary;
+    ob = {
+      title:     s.title || '',
+      author:    cleanAuthor(s.author),
+      category:  extractOpenBDGenre(item),
+      publisher: s.publisher || '',
+      thumb:     extractOpenBDCover(item),
+    };
+  }
+
+  if (gbRes.status === 'fulfilled' && gbRes.value?.items?.length) {
+    const info = gbRes.value.items[0].volumeInfo;
+    const rawCat = (info.categories || []).join(' ');
+    const thumb = (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '')
+      .replace('http://', 'https://')
+      .replace('zoom=1', 'zoom=3');
+    gb = {
+      title:     info.title || '',
+      author:    cleanAuthor((info.authors || []).join(', ')),
+      category:  mapGenre(rawCat),
+      publisher: info.publisher || '',
+      thumb:     thumb || null,
+    };
+  }
+
+  if (!ob && !gb) return null;
+
+  // OpenBD を基本に、不足をGoogle Booksで補完
+  const base = ob || gb;
+  const sub  = gb || ob;
+  return {
+    title:     base.title     || sub.title     || '',
+    author:    base.author    || sub.author    || '',
+    category:  base.category  || sub.category  || '',
+    publisher: base.publisher || sub.publisher || '',
+    thumb:     base.thumb     || sub.thumb     || null,
+  };
 }
 
 /* ════════════════════════════════════════
