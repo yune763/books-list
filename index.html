@@ -247,6 +247,31 @@
       border-radius: 8px; background: #F0EAE2; color: var(--text-sub);
     }
 
+    /* ── Loan Label ── */
+    .loan-label {
+      position: absolute; top: 8px; right: 8px;
+      padding: 2px 8px; border-radius: 6px;
+      font-size: 10px; font-weight: 700; letter-spacing: .04em;
+      pointer-events: none;
+    }
+    .loan-kashidashi { background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80; }
+    .loan-shakuyo    { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
+
+    /* ── Loan Toggle buttons ── */
+    .loan-row { display: flex; gap: 8px; }
+    .loan-btn {
+      flex: 1; padding: 10px 4px;
+      border: 2px solid var(--border); border-radius: 10px;
+      background: var(--bg); cursor: pointer;
+      font-family: inherit; font-size: 13px; font-weight: 600;
+      color: var(--text-muted); transition: all .2s;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      text-align: center;
+    }
+    .loan-btn.sel-kashidashi { background: #FFF3E0; color: #E65100; border-color: #FFCC80; }
+    .loan-btn.sel-shakuyo    { background: #E3F2FD; color: #1565C0; border-color: #90CAF9; }
+    .loan-btn.sel-none       { background: var(--surface); color: var(--text-sub); border-color: var(--text-muted); }
+
     .actions { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
     .btn-icon {
       min-width: 40px; height: 32px;
@@ -776,6 +801,14 @@
         <button class="st-btn" data-s="読了">読了</button>
       </div>
     </div>
+    <div class="form-row">
+      <label>貸出ラベル（任意）</label>
+      <div class="loan-row">
+        <button class="loan-btn" id="loan-btn-kashidashi" onclick="pickLoan('貸出中')">📤 貸出中</button>
+        <button class="loan-btn" id="loan-btn-shakuyo"   onclick="pickLoan('借用中')">📥 借用中</button>
+        <button class="loan-btn" id="loan-btn-none"      onclick="pickLoan('')"      style="flex:0.6">なし</button>
+      </div>
+    </div>
 
     <button class="btn-save" id="btn-save">保存する</button>
   </div>
@@ -850,6 +883,7 @@ const FIREBASE_CONFIG = {
 let books        = JSON.parse(localStorage.getItem('bk_list') || '[]');
 let currentTab   = '積読';
 let selStatus    = '積読';
+let selLoan      = '';
 let editingId    = null;
 let pendingThumb = null;
 let scanner      = null;
@@ -1079,8 +1113,10 @@ function renderBooks() {
       ? `<div class="author-head">${esc(author)}</div>`
       : '';
     prevAuthor = author;
+    const loanClass = b.loan === '貸出中' ? 'loan-kashidashi' : b.loan === '借用中' ? 'loan-shakuyo' : '';
     return header + `
     <div class="card" data-status="${b.status}">
+      ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
       <div class="cover">
         ${b.thumb ? `<img src="${esc(b.thumb)}" alt="" onerror="this.style.display='none'">` : ''}
       </div>
@@ -1187,6 +1223,7 @@ function openBookModal(book) {
   setPendingThumb(book?.thumb || null);
 
   pickStatus(book?.status || currentTab);
+  pickLoan(book?.loan || '');
   setMode('manual');
   hideDupWarn();
   document.getElementById('scan-ok').classList.remove('show');
@@ -1230,6 +1267,16 @@ function pickStatus(s) {
   document.querySelectorAll('.st-btn').forEach(b =>
     b.classList.toggle('sel', b.dataset.s === s)
   );
+}
+
+function pickLoan(loan) {
+  selLoan = loan;
+  document.getElementById('loan-btn-kashidashi').className =
+    'loan-btn' + (loan === '貸出中' ? ' sel-kashidashi' : '');
+  document.getElementById('loan-btn-shakuyo').className =
+    'loan-btn' + (loan === '借用中' ? ' sel-shakuyo' : '');
+  document.getElementById('loan-btn-none').className =
+    'loan-btn' + (!loan ? ' sel-none' : '');
 }
 
 /* ════════════════════════════════════════
@@ -1606,14 +1653,15 @@ async function saveBook() {
   const existing = editingId ? books.find(b => b.id === editingId) : null;
 
   const book = {
-    id:       existing?.id || newUUID(),
+    id:        existing?.id || newUUID(),
     title,
     author:    document.getElementById('f-author').value.trim(),
     category:  document.getElementById('f-category').value.trim(),
     publisher: document.getElementById('f-publisher').value.trim(),
-    status:   selStatus,
-    thumb:    pendingThumb ?? existing?.thumb ?? null,
-    addedAt:  existing?.addedAt || now
+    status:    selStatus,
+    loan:      selLoan || null,
+    thumb:     pendingThumb ?? existing?.thumb ?? null,
+    addedAt:   existing?.addedAt || now
   };
 
   closeBookModal();
