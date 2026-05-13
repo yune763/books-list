@@ -204,13 +204,14 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       transition: transform .2s, box-shadow .2s;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
     }
     .card::before {
       content: '';
       position: absolute;
       top: 0; left: 0;
       width: 5px; height: 100%;
+      border-radius: 16px 0 0 16px;
     }
     .card[data-status="積読"]::before  { background: var(--tsundoku); }
     .card[data-status="未購入"]::before { background: var(--mihikou); }
@@ -249,10 +250,10 @@
 
     /* ── Loan Label ── */
     .loan-label {
-      position: absolute; top: 8px; right: 8px;
-      padding: 2px 8px; border-radius: 6px;
+      position: absolute; top: -9px; left: 16px;
+      padding: 2px 9px; border-radius: 6px;
       font-size: 10px; font-weight: 700; letter-spacing: .04em;
-      pointer-events: none;
+      pointer-events: none; z-index: 1;
     }
     .loan-kashidashi { background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80; }
     .loan-shakuyo    { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
