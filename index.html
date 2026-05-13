@@ -1421,9 +1421,9 @@ async function fetchISBN(isbn) {
   if (gbRes.status === 'fulfilled' && gbRes.value?.items?.length) {
     const info = gbRes.value.items[0].volumeInfo;
     const rawCat = (info.categories || []).join(' ');
-    const thumb = (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '')
-      .replace('http://', 'https://')
-      .replace('zoom=1', 'zoom=3');
+    const imgLinks = info.imageLinks || {};
+    const thumb = (imgLinks.thumbnail || imgLinks.smallThumbnail || '')
+      .replace('http://', 'https://');
     gb = {
       title:     info.title || '',
       author:    cleanAuthor((info.authors || []).join(', ')),
