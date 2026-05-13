@@ -1271,16 +1271,27 @@ async function applyISBN(isbn) {
 
 function cleanAuthor(raw) {
   if (!raw) return '';
-  return raw
-    .replace(/,?\s*\d{4}[-－]?\d{0,4}/g, '')  // 年号を除去（例: 1952- / 1952-2020）
+  const s = raw
+    .replace(/,?\s*\d{4}[-－]?\d{0,4}/g, '')      // 年号を除去
     .replace(/\s*[\/／]\s*\d{4}[-－]?\d{0,4}/g, '')
-    .replace(/[\[［【].*?[\]］】]/g, '')         // 括弧内を除去
-    .replace(/\s*(著|編著|編|訳|監修|イラスト|絵|原著|文)\b/g, '')  // 役割語を除去
-    .split(/[,，]/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0)
-    .join(', ')
-    .trim();
+    .replace(/[\[［【].*?[\]］】]/g, '')             // 括弧内を除去
+    .replace(/\s*(著|編著|編|訳|監修|イラスト|絵|原著|文)\b/g, ''); // 役割語を除去
+
+  // コンマで分割し、隣り合う短い日本語断片（姓・名）は結合する
+  const parts = s.split(/[,，]/).map(p => p.trim()).filter(p => p.length > 0);
+  const isNameFragment = p => /^[^\x00-\x7F]{1,3}$/.test(p); // 1〜3文字の日本語のみ
+  const merged = [];
+  let i = 0;
+  while (i < parts.length) {
+    if (i + 1 < parts.length && isNameFragment(parts[i]) && isNameFragment(parts[i + 1])) {
+      merged.push(parts[i] + parts[i + 1]); // 姓＋名を結合
+      i += 2;
+    } else {
+      merged.push(parts[i]);
+      i++;
+    }
+  }
+  return merged.join(', ').trim();
 }
 
 async function fetchISBN(isbn) {
