@@ -246,7 +246,6 @@
       font-size: 11px; padding: 2px 8px;
       border-radius: 8px; background: #F0EAE2; color: var(--text-sub);
     }
-    .price { font-size: 12px; font-weight: 600; color: var(--text-sub); }
 
     .actions { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
     .btn-icon {
@@ -754,8 +753,8 @@
       <input type="text" id="f-category" placeholder="例：小説、技術書、ビジネス" autocomplete="off">
     </div>
     <div class="form-row">
-      <label>金額（円）</label>
-      <input type="number" id="f-price" placeholder="0" min="0" inputmode="numeric">
+      <label>出版社</label>
+      <input type="text" id="f-publisher" placeholder="例：講談社、集英社" autocomplete="off">
     </div>
     <div class="form-row">
       <label>ステータス</label>
@@ -1067,8 +1066,8 @@ function renderBooks() {
       <div class="info">
         <div class="info-title">${esc(b.title)}</div>
         <div class="info-meta">
-          ${b.category ? `<span class="chip">${esc(b.category)}</span>` : ''}
-          ${b.price    ? `<span class="price">¥${Number(b.price).toLocaleString()}</span>` : ''}
+          ${b.category  ? `<span class="chip">${esc(b.category)}</span>`  : ''}
+          ${b.publisher ? `<span class="chip">${esc(b.publisher)}</span>` : ''}
         </div>
       </div>
       <div class="actions">
@@ -1099,7 +1098,7 @@ function openBookModal(book) {
   document.getElementById('f-title').value    = book?.title    || '';
   document.getElementById('f-author').value   = book?.author   || '';
   document.getElementById('f-category').value = book?.category || '';
-  document.getElementById('f-price').value    = book?.price    || '';
+  document.getElementById('f-publisher').value = book?.publisher || '';
 
   pickStatus(book?.status || currentTab);
   setMode('manual');
@@ -1257,7 +1256,7 @@ async function applyISBN(isbn) {
       document.getElementById('f-title').value    = info.title    || '';
       document.getElementById('f-author').value   = info.author   || '';
       document.getElementById('f-category').value = info.category || '';
-      if (info.price) document.getElementById('f-price').value = info.price;
+      if (info.publisher) document.getElementById('f-publisher').value = info.publisher;
       pendingThumb = info.thumb || null;
       toast('書籍情報を自動入力しました');
       checkDuplicate();
@@ -1344,11 +1343,11 @@ async function fetchISBN(isbn) {
     if (data[0]) {
       const s = data[0].summary;
       return {
-        title:    s.title                    || '',
-        author:   cleanAuthor(s.author),
-        category: extractOpenBDGenre(data[0]),
-        thumb:    s.cover                    || null,
-        price:    s.price ? String(s.price).replace(/[^0-9]/g, '') : ''
+        title:     s.title                    || '',
+        author:    cleanAuthor(s.author),
+        category:  extractOpenBDGenre(data[0]),
+        publisher: s.publisher               || '',
+        thumb:     s.cover                   || null
       };
     }
   } catch (_) {}
@@ -1362,11 +1361,11 @@ async function fetchISBN(isbn) {
       const sale = data.items[0].saleInfo;
       const rawCat = (info.categories || []).join(' ');
       return {
-        title:    info.title || '',
-        author:   cleanAuthor((info.authors || []).join(', ')),
-        category: mapGenre(rawCat),
-        thumb:    info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
-        price:    sale?.listPrice?.amount || ''
+        title:     info.title || '',
+        author:    cleanAuthor((info.authors || []).join(', ')),
+        category:  mapGenre(rawCat),
+        publisher: info.publisher || '',
+        thumb:     info.imageLinks?.thumbnail?.replace('http://', 'https://') || null
       };
     }
   } catch (_) {}
@@ -1416,9 +1415,9 @@ async function saveBook() {
   const book = {
     id:       existing?.id || newUUID(),
     title,
-    author:   document.getElementById('f-author').value.trim(),
-    category: document.getElementById('f-category').value.trim(),
-    price:    document.getElementById('f-price').value || '',
+    author:    document.getElementById('f-author').value.trim(),
+    category:  document.getElementById('f-category').value.trim(),
+    publisher: document.getElementById('f-publisher').value.trim(),
     status:   selStatus,
     thumb:    pendingThumb ?? existing?.thumb ?? null,
     addedAt:  existing?.addedAt || now
