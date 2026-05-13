@@ -1405,8 +1405,19 @@ function extractOpenBDCover(item) {
   return null;
 }
 
+function tryImage(url) {
+  return new Promise(resolve => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.onload  = () => resolve(url);
+    img.onerror = () => resolve(null);
+    setTimeout(() => resolve(null), 4000);
+    img.src = url;
+  });
+}
+
 async function fetchISBN(isbn) {
-  // 両APIを並列取得して補完し合う
+  // 両APIを並列取得
   const [obRes, gbRes] = await Promise.allSettled([
     fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`).then(r => r.json()),
     fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`).then(r => r.json()),
@@ -1443,15 +1454,37 @@ async function fetchISBN(isbn) {
 
   if (!ob && !gb) return null;
 
-  // OpenBD を基本に、不足をGoogle Booksで補完
   const base = ob || gb;
   const sub  = gb || ob;
+
+  // 表紙候補URL（優先順）
+  const thumbCandidates = [
+    base.thumb,
+    sub.thumb,
+    `https://cover.openbd.jp/${isbn}.jpg`,          // OpenBD CDN直接
+    `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`, // 国立国会図書館
+  ].filter(Boolean);
+
+  // 並列で画像を試し、最初に読み込めたものを採用
+  const thumb = await new Promise(resolve => {
+    let done = false;
+    let remaining = thumbCandidates.length;
+    if (!remaining) return resolve(null);
+    thumbCandidates.forEach(url => {
+      tryImage(url).then(result => {
+        remaining--;
+        if (result && !done) { done = true; resolve(result); }
+        else if (remaining === 0 && !done) resolve(null);
+      });
+    });
+  });
+
   return {
     title:     base.title     || sub.title     || '',
     author:    base.author    || sub.author    || '',
     category:  base.category  || sub.category  || '',
     publisher: base.publisher || sub.publisher || '',
-    thumb:     base.thumb     || sub.thumb     || null,
+    thumb,
   };
 }
 
