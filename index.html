@@ -593,31 +593,6 @@
       padding: 10px 12px; line-height: 1.6; margin-bottom: 12px;
     }
 
-    /* ── Jump Bar ── */
-    .jump-bar-wrap {
-      grid-column: 1 / -1;
-      display: flex; flex-wrap: wrap; gap: 6px;
-      padding: 4px 0 12px;
-    }
-    .jump-btn {
-      padding: 5px 12px; border-radius: 16px;
-      border: 1.5px solid var(--border); background: var(--bg);
-      font-family: inherit; font-size: 12px; font-weight: 600;
-      color: var(--text-sub); cursor: pointer;
-      touch-action: manipulation; transition: all .15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .jump-btn:hover { background: var(--text); color: var(--surface); border-color: var(--text); }
-
-    /* ── Section Header ── */
-    .section-head {
-      grid-column: 1 / -1;
-      font-size: 12px; font-weight: 700; letter-spacing: .1em;
-      color: var(--text-muted); padding: 14px 4px 6px;
-      border-bottom: 1px solid var(--border);
-      scroll-margin-top: 140px;
-    }
-
     /* ── Google Login ── */
     .btn-login {
       display: flex; align-items: center; gap: 7px;
@@ -853,19 +828,6 @@ let auth        = null;
 let currentUser = null;
 let unsub       = null;
 
-const KANA_ROWS = [
-  { label: 'あ行', from: 0x3042, to: 0x304A },
-  { label: 'か行', from: 0x304B, to: 0x3054 },
-  { label: 'さ行', from: 0x3055, to: 0x305E },
-  { label: 'た行', from: 0x305F, to: 0x3069 },
-  { label: 'な行', from: 0x306A, to: 0x306E },
-  { label: 'は行', from: 0x306F, to: 0x307D },
-  { label: 'ま行', from: 0x307E, to: 0x3082 },
-  { label: 'や行', from: 0x3084, to: 0x3088 },
-  { label: 'ら行', from: 0x3089, to: 0x308D },
-  { label: 'わ行', from: 0x308F, to: 0x3093 },
-];
-
 /* ════════════════════════════════════════
    Boot
 ════════════════════════════════════════ */
@@ -1037,44 +999,32 @@ function updateBadges() {
   });
 }
 
-/* ════════════════════════════════════════
-   Row grouping (五十音)
-════════════════════════════════════════ */
-function getRowLabel(title) {
-  if (!title) return 'その他';
-  let ch = title[0];
-  // カタカナ→ひらがな変換
-  if (ch >= 'ァ' && ch <= 'ヶ') {
-    ch = String.fromCharCode(ch.charCodeAt(0) - 0x60);
-  }
-  const code = ch.charCodeAt(0);
-  for (const row of KANA_ROWS) {
-    if (code >= row.from && code <= row.to) return row.label;
-  }
-  if (/[A-Za-zａ-ｚＡ-Ｚ]/.test(ch)) return 'A-Z';
-  if (/[0-9０-９]/.test(ch)) return '0-9';
-  return 'その他';
-}
+function renderBooks() {
+  const grid = document.getElementById('grid');
+  const list = books.filter(b => b.status === currentTab);
 
-function groupByRow(list) {
-  const order = [...KANA_ROWS.map(r => r.label), 'A-Z', '0-9', 'その他'];
-  const map = {};
-  for (const b of list) {
-    const row = getRowLabel(b.title);
-    if (!map[row]) map[row] = [];
-    map[row].push(b);
+  if (!list.length) {
+    const msgs = {
+      '積読':  { h:'積読本がありません',    p:'追加ボタンから書籍を登録しましょう' },
+      '未購入': { h:'ウィッシュリストは空です', p:'購入予定の書籍を追加しましょう' },
+      '読了':  { h:'読了本がありません',    p:'読み終わった書籍を記録しましょう' }
+    };
+    const m = msgs[currentTab];
+    grid.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon"></div>
+        <h3>${m.h}</h3>
+        <p>${m.p}</p>
+      </div>`;
+    return;
   }
-  return order.filter(r => map[r]).map(r => ({ label: r, books: map[r] }));
-}
 
-function scrollToSection(rowLabel) {
-  const id = 'section-' + rowLabel;
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+  const totalPrice = list.reduce((s, b) => s + (Number(b.price) || 0), 0);
+  const summaryHtml = `<div class="summary">
+    ${list.length} 冊　|　合計 <span>¥${totalPrice.toLocaleString()}</span>
+  </div>`;
 
-function cardHtml(b) {
-  return `
+  grid.innerHTML = summaryHtml + list.map(b => `
     <div class="card" data-status="${b.status}">
       <div class="cover">
         ${b.thumb ? `<img src="${esc(b.thumb)}" alt="" onerror="this.style.display='none'">` : ''}
@@ -1091,53 +1041,8 @@ function cardHtml(b) {
         <button class="btn-icon btn-edit"   onclick="editBook('${b.id}')">編集</button>
         <button class="btn-icon btn-delete" onclick="deleteBook('${b.id}')">削除</button>
       </div>
-    </div>`;
-}
-
-function renderBooks() {
-  const grid = document.getElementById('grid');
-  const rawList = books.filter(b => b.status === currentTab);
-
-  if (!rawList.length) {
-    const msgs = {
-      '積読':  { h:'積読本がありません',    p:'追加ボタンから書籍を登録しましょう' },
-      '未購入': { h:'ウィッシュリストは空です', p:'購入予定の書籍を追加しましょう' },
-      '読了':  { h:'読了本がありません',    p:'読み終わった書籍を記録しましょう' }
-    };
-    const m = msgs[currentTab];
-    grid.innerHTML = `
-      <div class="empty">
-        <div class="empty-icon"></div>
-        <h3>${m.h}</h3>
-        <p>${m.p}</p>
-      </div>`;
-    return;
-  }
-
-  // 五十音順ソート
-  const list = [...rawList].sort((a, b) =>
-    a.title.localeCompare(b.title, 'ja', { sensitivity: 'base' })
-  );
-
-  const groups = groupByRow(list);
-  const totalPrice = list.reduce((s, b) => s + (Number(b.price) || 0), 0);
-
-  const jumpHtml = `<div class="jump-bar-wrap">
-    ${groups.map(g =>
-      `<button class="jump-btn" onclick="scrollToSection('${g.label}')">${g.label}</button>`
-    ).join('')}
-  </div>`;
-
-  const summaryHtml = `<div class="summary">
-    ${list.length} 冊　|　合計 <span>¥${totalPrice.toLocaleString()}</span>
-  </div>`;
-
-  const sectionsHtml = groups.map(g => `
-    <div class="section-head" id="section-${g.label}">── ${g.label} ──</div>
-    ${g.books.map(b => cardHtml(b)).join('')}
+    </div>
   `).join('');
-
-  grid.innerHTML = jumpHtml + summaryHtml + sectionsHtml;
 }
 
 function esc(s) {
