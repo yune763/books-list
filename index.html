@@ -774,19 +774,27 @@
 
     <!-- 表紙登録ボタン群 -->
     <input type="file" id="cover-file-input" accept="image/*" style="display:none" onchange="coverFromFile(event)">
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
-      <button type="button" onclick="document.getElementById('cover-file-input').click()" style="
-        flex:1; padding:10px 6px;
-        background:var(--bg); border:1.5px solid var(--border); border-radius:10px;
-        font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
-        cursor:pointer; touch-action:manipulation;
-      ">画像から登録</button>
-      <button type="button" onclick="searchCoverByTitle()" style="
-        flex:1; padding:10px 6px;
-        background:var(--bg); border:1.5px solid var(--border); border-radius:10px;
-        font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
-        cursor:pointer; touch-action:manipulation;
-      ">タイトルで検索</button>
+    <div id="cover-dropzone" style="
+      display:flex; flex-direction:column; gap:8px;
+      border:2px dashed var(--border); border-radius:12px;
+      padding:12px; margin-bottom:12px;
+      transition:border-color .15s, background .15s;
+    ">
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="document.getElementById('cover-file-input').click()" style="
+          flex:1; padding:10px 6px;
+          background:var(--surface); border:1.5px solid var(--border); border-radius:10px;
+          font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
+          cursor:pointer; touch-action:manipulation;
+        ">画像から登録</button>
+        <button type="button" onclick="searchCoverByTitle()" style="
+          flex:1; padding:10px 6px;
+          background:var(--surface); border:1.5px solid var(--border); border-radius:10px;
+          font-family:inherit; font-size:13px; font-weight:600; color:var(--text-sub);
+          cursor:pointer; touch-action:manipulation;
+        ">タイトルで検索</button>
+      </div>
+      <p style="text-align:center;font-size:11px;color:var(--text-muted);margin:0;">PCはここに画像をドロップも可</p>
     </div>
 
     <div class="form-row">
@@ -1061,6 +1069,29 @@ function initEvents() {
 
   document.getElementById('btn-save').addEventListener('click', saveBook);
   document.getElementById('f-title').addEventListener('input', checkDuplicate);
+
+  // ドラッグ&ドロップ（PC向け）
+  const dropzone = document.getElementById('cover-dropzone');
+  dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'var(--tsundoku)';
+    dropzone.style.background  = 'var(--tsundoku-bg)';
+  });
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.style.borderColor = 'var(--border)';
+    dropzone.style.background  = '';
+  });
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'var(--border)';
+    dropzone.style.background  = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      processCoverFile(file);
+    } else if (file) {
+      toast('画像ファイルをドロップしてください');
+    }
+  });
 }
 
 /* ════════════════════════════════════════
@@ -1177,9 +1208,7 @@ function clearCover() {
   document.getElementById('cover-file-input').value = '';
 }
 
-async function coverFromFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+async function processCoverFile(file) {
   try {
     const dataUrl = await resizeImage(file, 300, 400);
     setPendingThumb(dataUrl);
@@ -1187,6 +1216,12 @@ async function coverFromFile(event) {
   } catch (e) {
     toast('画像の読み込みに失敗しました');
   }
+}
+
+async function coverFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  await processCoverFile(file);
   event.target.value = '';
 }
 
@@ -1362,6 +1397,9 @@ async function startLiveScanner() {
     video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
   });
   const video = document.getElementById('scan-video');
+  // 前回のセッション状態をリセット
+  video.srcObject = null;
+  video.load();
   video.srcObject = liveStream;
   await video.play();
 
@@ -1388,6 +1426,9 @@ async function startLiveScanner() {
 }
 
 async function startHtml5Scanner() {
+  // 前回の残骸をクリア
+  const qrDiv = document.getElementById('qr-reader');
+  qrDiv.innerHTML = '';
   scanner = new Html5Qrcode('qr-reader');
   await scanner.start(
     { facingMode: 'environment' },
