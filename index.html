@@ -195,6 +195,9 @@
     .empty p  { font-size: 13px; }
 
     /* ── Book Card ── */
+    .card-wrap {
+      position: relative; /* ローンラベルの位置基準 */
+    }
     .card {
       background: var(--surface);
       border-radius: 16px;
@@ -204,14 +207,13 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       transition: transform .2s, box-shadow .2s;
       position: relative;
-      overflow: visible;
+      overflow: hidden;
     }
     .card::before {
       content: '';
       position: absolute;
       top: 0; left: 0;
       width: 5px; height: 100%;
-      border-radius: 16px 0 0 16px;
     }
     .card[data-status="積読"]::before  { background: var(--tsundoku); }
     .card[data-status="未購入"]::before { background: var(--mihikou); }
@@ -253,7 +255,7 @@
       position: absolute; top: -9px; left: 16px;
       padding: 2px 9px; border-radius: 6px;
       font-size: 10px; font-weight: 700; letter-spacing: .04em;
-      pointer-events: none; z-index: 1;
+      pointer-events: none; z-index: 2;
     }
     .loan-kashidashi { background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80; }
     .loan-shakuyo    { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
@@ -1157,21 +1159,23 @@ function renderBooks() {
     prevAuthor = author;
     const loanClass = b.loan === '貸出中' ? 'loan-kashidashi' : b.loan === '借用中' ? 'loan-shakuyo' : '';
     return header + `
-    <div class="card" data-status="${b.status}">
+    <div class="card-wrap">
       ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
-      <div class="cover">
-        ${b.thumb ? `<img src="${esc(b.thumb)}" alt="" onerror="this.style.display='none'">` : ''}
-      </div>
-      <div class="info">
-        <div class="info-title">${esc(b.title)}</div>
-        <div class="info-meta">
-          ${b.category  ? `<span class="chip">${esc(b.category)}</span>`  : ''}
-          ${b.publisher ? `<span class="chip">${esc(b.publisher)}</span>` : ''}
+      <div class="card" data-status="${b.status}">
+        <div class="cover">
+          ${b.thumb ? `<img src="${esc(b.thumb)}" alt="" onerror="this.style.display='none'">` : ''}
         </div>
-      </div>
-      <div class="actions">
-        <button class="btn-icon btn-edit"   onclick="editBook('${b.id}')">編集</button>
-        <button class="btn-icon btn-delete" onclick="deleteBook('${b.id}')">削除</button>
+        <div class="info">
+          <div class="info-title">${esc(b.title)}</div>
+          <div class="info-meta">
+            ${b.category  ? `<span class="chip">${esc(b.category)}</span>`  : ''}
+            ${b.publisher ? `<span class="chip">${esc(b.publisher)}</span>` : ''}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-icon btn-edit"   onclick="editBook('${b.id}')">編集</button>
+          <button class="btn-icon btn-delete" onclick="deleteBook('${b.id}')">削除</button>
+        </div>
       </div>
     </div>`;
   }).join('');
