@@ -1162,7 +1162,7 @@ function renderBooks() {
       ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
       <div class="card" data-status="${b.status}">
         <div class="cover">
-          ${b.thumb ? `<img src="${b.thumb.replace(/"/g,'%22')}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
+          ${b.thumb ? `<img src="${esc(b.thumb)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.style.display='none'">` : ''}
         </div>
         <div class="info">
           <div class="info-title">${esc(b.title)}</div>
@@ -1643,11 +1643,15 @@ async function fetchISBN(isbn) {
   }
 
   if (gbRes.status === 'fulfilled' && gbRes.value?.items?.length) {
-    const info = gbRes.value.items[0].volumeInfo;
+    const vol = gbRes.value.items[0];
+    const info = vol.volumeInfo;
     const rawCat = (info.categories || []).join(' ');
     const imgLinks = info.imageLinks || {};
-    const thumb = (imgLinks.thumbnail || imgLinks.smallThumbnail || '')
-      .replace('http://', 'https://');
+    const rawThumb = imgLinks.thumbnail || imgLinks.smallThumbnail || '';
+    // edge=curl を除去し http→https
+    const thumb = rawThumb
+      .replace('http://', 'https://')
+      .replace('&edge=curl', '');
     gb = {
       title:     info.title || '',
       author:    cleanAuthor((info.authors || []).join(', ')),
@@ -1662,8 +1666,9 @@ async function fetchISBN(isbn) {
   const base = ob || gb;
   const sub  = gb || ob;
 
-  // 表紙URL：APIから取得できたものだけ使う（CDN無条件フォールバックは削除）
-  const thumb = base.thumb || sub.thumb || null;
+  // OpenBD CDN URLを補助フォールバックとして利用（onerrorで失敗なら非表示）
+  const cdnThumb = `https://cover.openbd.jp/${isbn}.jpg`;
+  const thumb = base.thumb || sub.thumb || cdnThumb;
 
   return {
     title:     base.title     || sub.title     || '',
