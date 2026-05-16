@@ -1162,7 +1162,7 @@ function renderBooks() {
       ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
       <div class="card" data-status="${b.status}">
         <div class="cover">
-          ${b.thumb ? `<img src="${b.thumb.replace(/"/g,'%22')}" loading="lazy" decoding="async">` : ''}
+          ${b.thumb ? `<img src="${b.thumb.replace(/"/g,'%22')}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
         </div>
         <div class="info">
           <div class="info-title">${esc(b.title)}</div>
@@ -1662,9 +1662,8 @@ async function fetchISBN(isbn) {
   const base = ob || gb;
   const sub  = gb || ob;
 
-  // 表紙URL：取得できたものを優先順で使う（画像プリロードなし）
-  const thumb = base.thumb || sub.thumb
-    || `https://cover.openbd.jp/${isbn}.jpg` || null;
+  // 表紙URL：APIから取得できたものだけ使う（CDN無条件フォールバックは削除）
+  const thumb = base.thumb || sub.thumb || null;
 
   return {
     title:     base.title     || sub.title     || '',
