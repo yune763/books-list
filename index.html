@@ -225,9 +225,15 @@
     .cover {
       width: 54px; height: 72px;
       border-radius: 3px 5px 5px 3px;
-      background: linear-gradient(160deg, #EEE4DA 55%, #DDD0C5 100%) center / cover no-repeat;
+      background: linear-gradient(160deg, #EEE4DA 55%, #DDD0C5 100%);
       border-left: 5px solid #C8B0A4;
       flex-shrink: 0;
+      overflow: hidden;
+    }
+    .cover img {
+      display: block;
+      width: 54px; height: 72px;
+      object-fit: cover;
     }
 
     .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -1155,7 +1161,9 @@ function renderBooks() {
     <div class="card-wrap">
       ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
       <div class="card" data-status="${b.status}">
-        <div class="cover" ${b.thumb ? `style="background-image:url(${JSON.stringify(b.thumb)})"` : ''}></div>
+        <div class="cover">
+          ${b.thumb ? `<img src="${b.thumb.replace(/"/g,'%22')}" loading="lazy" decoding="async">` : ''}
+        </div>
         <div class="info">
           <div class="info-title">${esc(b.title)}</div>
           <div class="info-meta">
