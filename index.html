@@ -47,14 +47,18 @@
       -webkit-text-size-adjust: 100%;
     }
 
+    /* ── Sticky wrapper (header + tabs) ── */
+    .sticky-top {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
     /* ── Header ── */
     header {
       background: linear-gradient(135deg, var(--header-from) 0%, var(--header-to) 100%);
       padding: 16px 16px 12px;
       padding-top: max(16px, env(safe-area-inset-top));
-      position: sticky;
-      top: 0;
-      z-index: 100;
       box-shadow: 0 2px 10px rgba(0,0,0,0.08);
       display: flex;
       align-items: center;
@@ -114,9 +118,6 @@
       display: flex;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 99;
     }
     .tab {
       flex: 1;
@@ -668,6 +669,7 @@
 </head>
 <body>
 
+<div class="sticky-top">
 <!-- Header -->
 <header>
   <div class="header-left">
@@ -704,6 +706,7 @@
     <span class="badge" id="b-読了">0</span>
   </button>
 </nav>
+</div>
 
 <!-- Login Screen (shown when not logged in) -->
 <div id="login-screen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:300; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px;">
@@ -1103,7 +1106,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tab)
   );
-  renderBooks();
+  renderAll();
 }
 
 /* ════════════════════════════════════════
@@ -1733,6 +1736,13 @@ async function saveBook() {
   closeBookModal();
 
   if (currentUser) {
+    // UI を即座に更新してから Firestore に書き込む（表紙が反映されないラグを防ぐ）
+    if (existing) {
+      books = books.map(b => b.id === book.id ? book : b);
+    } else {
+      books.unshift(book);
+    }
+    renderAll();
     await fsWrite(book);
     toast(existing ? '書籍を更新しました' : '書籍を追加しました');
   } else {
