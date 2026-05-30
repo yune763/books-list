@@ -3,14 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>My Library</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Firebase SDK (compat v10) -->
-  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
   <!-- Barcode Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
@@ -43,7 +40,11 @@
       font-family: 'Klee One', 'Hiragino Maru Gothic ProN', 'Yu Gothic UI', cursive, sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
       -webkit-text-size-adjust: 100%;
     }
 
@@ -52,7 +53,20 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      flex-shrink: 0;
     }
+
+    /* ── Slide container ── */
+    .slide-container {
+      flex: 1;
+      display: flex;
+      overflow-x: scroll;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .slide-container::-webkit-scrollbar { display: none; }
 
     /* ── Header ── */
     header {
@@ -113,6 +127,20 @@
     }
     .btn-settings:hover { background: rgba(255,255,255,.7); }
 
+    .btn-search-icon {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,.5);
+      border: none; border-radius: 8px;
+      cursor: pointer; color: #5D4037;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0;
+    }
+    .btn-search-icon:hover  { background: rgba(255,255,255,.7); }
+    .btn-search-icon.active { background: rgba(255,255,255,.85); }
+
     /* ── Tab Nav ── */
     .tabs {
       display: flex;
@@ -161,19 +189,24 @@
 
     /* ── Book Grid ── */
     .book-grid {
+      scroll-snap-align: start;
+      flex: 0 0 100%;
+      height: 100%;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       padding: 14px;
+      padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom)));
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
       gap: 12px;
-      max-width: 1100px;
-      margin: 0 auto;
-      padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom)));
+      align-content: start;
     }
     @media (max-width: 480px) {
       .book-grid {
         grid-template-columns: 1fr;
         padding: 10px;
         gap: 10px;
+        padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom)));
       }
     }
 
@@ -628,43 +661,78 @@
       border-bottom: 1px solid var(--border);
     }
 
-    /* ── Google Login ── */
-    .btn-login {
-      display: flex; align-items: center; gap: 7px;
-      padding: 8px 14px;
-      background: white; color: #3D3530;
-      border: 1.5px solid #E0D4CC; border-radius: 10px;
-      font-family: inherit; font-size: 13px; font-weight: 600;
-      cursor: pointer; touch-action: manipulation;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    }
-    .btn-login svg { flex-shrink: 0; }
-    .user-chip {
-      display: flex; align-items: center; gap: 7px;
-      background: rgba(255,255,255,.5);
-      border: 1px solid rgba(255,255,255,.7);
-      border-radius: 20px; padding: 4px 10px 4px 4px;
-    }
-    .user-avatar {
-      width: 26px; height: 26px; border-radius: 50%;
-      object-fit: cover; flex-shrink: 0;
-      background: #C5A99D;
-    }
-    .user-name {
-      font-size: 12px; font-weight: 600; color: #5D4037;
-      max-width: 80px; overflow: hidden;
-      text-overflow: ellipsis; white-space: nowrap;
-    }
-    .btn-logout {
-      padding: 6px 10px; margin-left: 4px;
-      background: rgba(255,255,255,.5); border: none; border-radius: 8px;
-      font-family: inherit; font-size: 12px; color: #5D4037; font-weight: 600;
-      cursor: pointer; touch-action: manipulation;
-    }
 
     @media (min-width: 640px) {
       .modal { border-radius: 24px; margin-bottom: 40px; }
     }
+
+    /* ── Search Bar ── */
+    .search-bar-wrap {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .22s ease;
+    }
+    .search-bar-wrap.open {
+      max-height: 62px;
+    }
+    .search-bar-wrap .search-bar {
+      margin: 8px 12px 9px;
+    }
+    .search-bar {
+      display: flex;
+      align-items: center;
+      background: var(--bg);
+      border-radius: 20px;
+      padding: 7px 12px;
+      gap: 8px;
+      border: 1.5px solid transparent;
+      transition: border-color .2s;
+    }
+    .search-bar:focus-within { border-color: #C5A99D; }
+    .search-icon { font-size: 14px; flex-shrink: 0; color: var(--text-muted); }
+    .search-bar input[type="search"] {
+      flex: 1; border: none; background: none;
+      font-family: inherit; font-size: 14px; color: var(--text);
+      outline: none; padding: 0; min-width: 0;
+      -webkit-appearance: none;
+    }
+    .search-bar input[type="search"]::placeholder { color: var(--text-muted); }
+    .search-bar input[type="search"]::-webkit-search-cancel-button { display: none; }
+    .search-clear {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: none; background: var(--text-muted); color: white;
+      font-size: 11px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .15s;
+      touch-action: manipulation;
+    }
+    .search-clear.visible { opacity: 1; pointer-events: all; }
+
+    /* ── Swipe Dots ── */
+    .swipe-dots {
+      position: fixed;
+      bottom: max(30px, calc(18px + env(safe-area-inset-bottom)));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .swipe-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #D4C5BB;
+      transition: all .28s cubic-bezier(.4,0,.2,1);
+      flex-shrink: 0;
+    }
+    .swipe-dot.active { width: 22px; border-radius: 4px; }
+    .swipe-dot.active.dot-0 { background: var(--tsundoku); }
+    .swipe-dot.active.dot-1 { background: var(--mihikou); }
+    .swipe-dot.active.dot-2 { background: var(--dokuryo); }
   </style>
 </head>
 <body>
@@ -676,17 +744,11 @@
     <h1>My Library</h1>
   </div>
   <div class="header-right">
-    <!-- ログイン前 -->
-    <button class="btn-login" id="btn-login" onclick="signIn()">
-      <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      Googleでログイン
+    <button class="btn-search-icon" id="btn-search-icon" onclick="toggleSearch()" aria-label="検索">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+      </svg>
     </button>
-    <!-- ログイン後 -->
-    <div class="user-chip" id="user-chip" style="display:none">
-      <img class="user-avatar" id="user-avatar" src="" alt="">
-      <span class="user-name" id="user-name"></span>
-    </div>
-    <button class="btn-logout" id="btn-logout" onclick="signOut()" style="display:none">ログアウト</button>
     <button class="btn-settings" id="btn-settings">設定</button>
   </div>
 </header>
@@ -706,36 +768,32 @@
     <span class="badge" id="b-読了">0</span>
   </button>
 </nav>
-</div>
 
-<!-- Login Screen (shown when not logged in) -->
-<div id="login-screen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:300; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px;">
-  <div class="login-card" style="text-align:center; max-width:320px; width:100%;">
-    <div style="font-family:'Caveat',cursive; font-size:48px; font-weight:700; color:#5D4037; margin-bottom:4px;">My Library</div>
-    <p style="font-size:13px; color:var(--text-muted); margin-bottom:40px;">所有書籍の一覧・重複購入防止</p>
-    <div style="width:72px; height:96px; margin:0 auto 32px; background:linear-gradient(160deg,#EEE4DA 55%,#DDD0C5 100%); border-left:8px solid #C8B0A4; border-radius:4px 8px 8px 4px; opacity:.5;"></div>
-    <p style="font-size:14px; color:var(--text-sub); margin-bottom:24px; line-height:1.7;">
-      Googleアカウントでログインすると<br>書籍リストを閲覧・管理できます。<br>
-      <span style="font-size:12px; color:var(--text-muted);">スマホ・PCで自動同期されます。</span>
-    </p>
-    <button onclick="signIn()" style="
-      display:flex; align-items:center; justify-content:center; gap:10px;
-      width:100%; padding:14px;
-      background:white; color:#3D3530;
-      border:1.5px solid #E0D4CC; border-radius:12px;
-      font-family:inherit; font-size:15px; font-weight:600;
-      cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1);
-      touch-action:manipulation;
-    ">
-      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      Googleでログイン
-    </button>
+<!-- Search Bar (toggled by search icon) -->
+<div class="search-bar-wrap" id="search-bar-wrap">
+  <div class="search-bar">
+    <span class="search-icon">🔍</span>
+    <input type="search" id="search-input" placeholder="タイトル・著者・カテゴリで検索..." autocomplete="off">
+    <button class="search-clear" id="search-clear" onclick="clearSearch()" aria-label="検索クリア">✕</button>
   </div>
 </div>
+</div>
 
-<div class="book-grid" id="grid"></div>
 
-<button class="fab" id="fab" title="書籍を追加" style="display:none">+</button>
+<div class="slide-container" id="slide-container">
+  <div class="book-grid" id="grid-積読"></div>
+  <div class="book-grid" id="grid-未購入"></div>
+  <div class="book-grid" id="grid-読了"></div>
+</div>
+
+<button class="fab" id="fab" title="書籍を追加">+</button>
+
+<!-- Swipe Dots -->
+<div class="swipe-dots" id="swipe-dots">
+  <span class="swipe-dot active dot-0"></span>
+  <span class="swipe-dot dot-1"></span>
+  <span class="swipe-dot dot-2"></span>
+</div>
 
 <!-- ── 書籍追加/編集 Modal ── -->
 <div class="overlay" id="book-overlay">
@@ -844,29 +902,6 @@
     <div class="drag-handle"></div>
     <h2 class="modal-title">設定</h2>
 
-    <!-- アカウント -->
-    <div class="settings-section">
-      <h3>アカウント・同期</h3>
-      <div id="settings-logged-in" style="display:none">
-        <div class="fb-status">
-          <span class="sync-dot sync-synced" style="width:9px;height:9px"></span>
-          <span style="font-size:13px;color:var(--text-sub)">リアルタイム同期中</span>
-        </div>
-        <p class="settings-desc" id="settings-user-desc" style="margin-top:8px"></p>
-        <button class="btn-fb-clear" onclick="signOut()">ログアウト</button>
-      </div>
-      <div id="settings-logged-out">
-        <div class="fb-status">
-          <span class="sync-dot sync-offline" style="width:9px;height:9px"></span>
-          <span style="font-size:13px;color:var(--text-sub)">ローカル保存（同期なし）</span>
-        </div>
-        <p class="settings-desc" style="margin-top:8px">
-          Googleでログインすると、スマホ・PCで書籍データが<strong>自動的にリアルタイム同期</strong>されます。
-        </p>
-        <button class="btn-fb-save" onclick="signIn(); closeSettingsModal();">Googleでログイン</button>
-      </div>
-    </div>
-
     <!-- データ転送（バックアップ） -->
     <div class="settings-section">
       <h3>データのバックアップ・復元</h3>
@@ -890,20 +925,10 @@
 
 <script>
 /* ════════════════════════════════════════
-   Firebase Config (hardcoded)
-════════════════════════════════════════ */
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyD6zmjRbudBXEFPcrb8F5pS8PBv_bohLZ4",
-  authDomain:        "library-list-0511.firebaseapp.com",
-  projectId:         "library-list-0511",
-  storageBucket:     "library-list-0511.firebasestorage.app",
-  messagingSenderId: "772282653164",
-  appId:             "1:772282653164:web:d50fb3e78b0dd2d5f508c9"
-};
-
-/* ════════════════════════════════════════
    State
 ════════════════════════════════════════ */
+const TABS = ['積読', '未購入', '読了'];
+
 let books        = JSON.parse(localStorage.getItem('bk_list') || '[]');
 let currentTab   = '積読';
 let selStatus    = '積読';
@@ -912,134 +937,14 @@ let editingId    = null;
 let pendingThumb = null;
 let scanner      = null;
 let inputMode    = 'manual';
-
-let db          = null;
-let auth        = null;
-let currentUser = null;
-let unsub       = null;
+let searchQuery  = '';
+let searchOpen   = false;
 
 /* ════════════════════════════════════════
    Boot
 ════════════════════════════════════════ */
 renderAll();
 initEvents();
-initFirebase();
-
-/* ════════════════════════════════════════
-   Firebase & Auth
-════════════════════════════════════════ */
-function initFirebase() {
-  try {
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db   = firebase.firestore();
-    auth = firebase.auth();
-
-    // リダイレクトログイン後の結果を処理
-    auth.getRedirectResult().catch(e => {
-      if (e.code && e.code !== 'auth/no-current-user') {
-        console.error('Redirect result error:', e);
-        toast('ログインに失敗しました。時間をおいて再度お試しください。');
-      }
-    });
-
-    auth.onAuthStateChanged(user => {
-      currentUser = user;
-      updateAuthUI();
-      if (user) {
-        subscribe();
-      } else {
-        if (unsub) { unsub(); unsub = null; }
-        books = JSON.parse(localStorage.getItem('bk_list') || '[]');
-        renderAll();
-      }
-    });
-  } catch (e) {
-    console.error('Firebase init error:', e);
-  }
-}
-
-function booksRef() {
-  return db.collection('users').doc(currentUser.uid).collection('books');
-}
-
-function subscribe() {
-  if (unsub) unsub();
-  let firstSnapshot = true;
-  unsub = booksRef().onSnapshot(
-    snap => {
-      if (firstSnapshot && snap.empty && books.length > 0) {
-        firstSnapshot = false;
-        Promise.all(books.map(b => booksRef().doc(b.id).set(b)))
-          .then(() => toast('ローカルの書籍データをクラウドに移行しました'))
-          .catch(e => console.error('Migration error:', e));
-        return;
-      }
-      firstSnapshot = false;
-      books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      books.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
-      localStorage.setItem('bk_list', JSON.stringify(books));
-      renderAll();
-    },
-    err => console.error('Firestore error:', err)
-  );
-}
-
-function signIn() {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithRedirect(provider).catch(e => {
-    console.error('Sign in error:', e);
-    toast('ログインに失敗しました。時間をおいて再度お試しください。');
-  });
-}
-
-function signOut() {
-  if (!confirm('ログアウトしますか？')) return;
-  if (unsub) { unsub(); unsub = null; }
-  auth.signOut().then(() => {
-    books = JSON.parse(localStorage.getItem('bk_list') || '[]');
-    renderAll();
-    toast('ログアウトしました');
-  });
-}
-
-function updateAuthUI() {
-  const loggedIn   = !!currentUser;
-  const loginScreen = document.getElementById('login-screen');
-  const btnLogin   = document.getElementById('btn-login');
-  const userChip   = document.getElementById('user-chip');
-  const btnLogout  = document.getElementById('btn-logout');
-  const fab        = document.getElementById('fab');
-  const sLoggedIn  = document.getElementById('settings-logged-in');
-  const sLoggedOut = document.getElementById('settings-logged-out');
-  const sUserDesc  = document.getElementById('settings-user-desc');
-
-  if (loginScreen) loginScreen.style.display = loggedIn ? 'none' : 'flex';
-  if (btnLogin)    btnLogin.style.display    = loggedIn ? 'none' : 'flex';
-  if (userChip)    userChip.style.display    = loggedIn ? 'flex' : 'none';
-  if (btnLogout)   btnLogout.style.display   = loggedIn ? 'block' : 'none';
-  if (fab)         fab.style.display         = loggedIn ? 'flex' : 'none';
-  if (sLoggedIn)   sLoggedIn.style.display   = loggedIn ? 'block' : 'none';
-  if (sLoggedOut)  sLoggedOut.style.display  = loggedIn ? 'none'  : 'block';
-
-  if (loggedIn && currentUser) {
-    document.getElementById('user-name').textContent = currentUser.displayName || currentUser.email;
-    document.getElementById('user-avatar').src       = currentUser.photoURL || '';
-    if (sUserDesc) sUserDesc.textContent = `${currentUser.displayName || currentUser.email} でログイン中`;
-  }
-}
-
-/* ── Firestore write helpers ── */
-async function fsWrite(book) {
-  if (!currentUser) { persist(); renderAll(); return; }
-  try { await booksRef().doc(book.id).set(book); }
-  catch (e) { console.error('Write error:', e); toast('保存に失敗しました'); }
-}
-
-async function fsDelete(id) {
-  if (!currentUser) { persist(); renderAll(); return; }
-  try { await booksRef().doc(id).delete(); }
-  catch (e) { console.error('Delete error:', e); toast('削除に失敗しました'); }
-}
 
 /* ════════════════════════════════════════
    Events
@@ -1074,6 +979,14 @@ function initEvents() {
   document.getElementById('btn-save').addEventListener('click', saveBook);
   document.getElementById('f-title').addEventListener('input', checkDuplicate);
 
+  document.getElementById('search-input').addEventListener('input', e => {
+    searchQuery = e.target.value.trim();
+    document.getElementById('search-clear').classList.toggle('visible', searchQuery.length > 0);
+    renderAll();
+  });
+
+  initSwipe();
+
   // ドラッグ&ドロップ（PC向け）
   const dropzone = document.getElementById('cover-dropzone');
   dropzone.addEventListener('dragover', e => {
@@ -1099,6 +1012,36 @@ function initEvents() {
 }
 
 /* ════════════════════════════════════════
+   Swipe (CSS scroll-snap ベース)
+════════════════════════════════════════ */
+function initSwipe() {
+  const container = document.getElementById('slide-container');
+  let syncTimer = null;
+
+  const syncFromScroll = () => {
+    const idx = Math.min(
+      Math.max(Math.round(container.scrollLeft / container.clientWidth), 0),
+      TABS.length - 1
+    );
+    const tab = TABS[idx];
+    if (tab !== currentTab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.tab === tab)
+      );
+      document.querySelectorAll('.swipe-dot').forEach((d, i) =>
+        d.classList.toggle('active', i === idx)
+      );
+    }
+  };
+
+  container.addEventListener('scroll', () => {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncFromScroll, 60);
+  }, { passive: true });
+}
+
+/* ════════════════════════════════════════
    Tab
 ════════════════════════════════════════ */
 function switchTab(tab) {
@@ -1106,24 +1049,38 @@ function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tab)
   );
-  renderAll();
+  const idx = TABS.indexOf(tab);
+  const container = document.getElementById('slide-container');
+  container.scrollTo({ left: idx * container.clientWidth, behavior: 'smooth' });
+  document.querySelectorAll('.swipe-dot').forEach((d, i) =>
+    d.classList.toggle('active', i === idx)
+  );
 }
 
 /* ════════════════════════════════════════
    Render
 ════════════════════════════════════════ */
-function renderAll() { renderBooks(); updateBadges(); }
+function renderAll() { TABS.forEach(s => renderBooks(s)); updateBadges(); }
+
+function matchesSearch(b) {
+  if (!searchQuery) return true;
+  const q = searchQuery.toLowerCase();
+  return (b.title     || '').toLowerCase().includes(q) ||
+         (b.author    || '').toLowerCase().includes(q) ||
+         (b.category  || '').toLowerCase().includes(q) ||
+         (b.publisher || '').toLowerCase().includes(q);
+}
 
 function updateBadges() {
   ['積読','未購入','読了'].forEach(s => {
     document.getElementById('b-' + s).textContent =
-      books.filter(b => b.status === s).length;
+      books.filter(b => b.status === s && matchesSearch(b)).length;
   });
 }
 
-function renderBooks() {
-  const grid = document.getElementById('grid');
-  const list = books.filter(b => b.status === currentTab);
+function renderBooks(status) {
+  const grid = document.getElementById('grid-' + status);
+  const list = books.filter(b => b.status === status && matchesSearch(b));
 
   if (!list.length) {
     const msgs = {
@@ -1131,12 +1088,14 @@ function renderBooks() {
       '未購入': { h:'ウィッシュリストは空です', p:'購入予定の書籍を追加しましょう' },
       '読了':  { h:'読了本がありません',    p:'読み終わった書籍を記録しましょう' }
     };
-    const m = msgs[currentTab];
+    const emptyMsg = searchQuery
+      ? { h:`「${esc(searchQuery)}」に一致する本がありません`, p:'別のキーワードで検索してみてください' }
+      : msgs[status];
     grid.innerHTML = `
       <div class="empty">
         <div class="empty-icon"></div>
-        <h3>${m.h}</h3>
-        <p>${m.p}</p>
+        <h3>${emptyMsg.h}</h3>
+        <p>${emptyMsg.p}</p>
       </div>`;
     return;
   }
@@ -1329,7 +1288,6 @@ function closeBookModal() {
 }
 
 function openSettingsModal() {
-  updateAuthUI();
   document.getElementById('settings-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1735,30 +1693,14 @@ async function saveBook() {
 
   closeBookModal();
 
-  if (currentUser) {
-    // UI を即座に更新してから Firestore に書き込む（表紙が反映されないラグを防ぐ）
-    if (existing) {
-      books = books.map(b => b.id === book.id ? book : b);
-    } else {
-      books.unshift(book);
-    }
-    renderAll();
-    await fsWrite(book);
-    toast(existing ? '書籍を更新しました' : '書籍を追加しました');
+  if (existing) {
+    books = books.map(b => b.id === book.id ? book : b);
   } else {
-    if (existing) {
-      books = books.map(b => b.id === editingId ? book : b);
-    } else {
-      books.unshift(book);
-    }
-    persist();
-    toast(existing ? '書籍を更新しました' : '書籍を追加しました');
-    currentTab = selStatus;
-    document.querySelectorAll('.tab').forEach(t =>
-      t.classList.toggle('active', t.dataset.tab === currentTab)
-    );
-    renderAll();
+    books.unshift(book);
   }
+  persist();
+  toast(existing ? '書籍を更新しました' : '書籍を追加しました');
+  renderAll();
 
   // Switch tab to the saved status
   if (currentTab !== selStatus) switchTab(selStatus);
@@ -1769,15 +1711,11 @@ function editBook(id) {
   if (book) openBookModal(book);
 }
 
-async function deleteBook(id) {
+function deleteBook(id) {
   if (!confirm('この書籍を削除しますか？')) return;
-  if (currentUser) {
-    await fsDelete(id);
-  } else {
-    books = books.filter(b => b.id !== id);
-    persist();
-    renderAll();
-  }
+  books = books.filter(b => b.id !== id);
+  persist();
+  renderAll();
   toast('書籍を削除しました');
 }
 
@@ -1802,6 +1740,30 @@ function newUUID() {
     const r = Math.random() * 16 | 0;
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
+}
+
+/* ════════════════════════════════════════
+   Search
+════════════════════════════════════════ */
+function toggleSearch() {
+  searchOpen = !searchOpen;
+  const wrap = document.getElementById('search-bar-wrap');
+  const icon = document.getElementById('btn-search-icon');
+  wrap.classList.toggle('open', searchOpen);
+  icon.classList.toggle('active', searchOpen);
+  if (searchOpen) {
+    setTimeout(() => document.getElementById('search-input').focus(), 230);
+  } else {
+    clearSearch();
+  }
+}
+
+function clearSearch() {
+  searchQuery = '';
+  const input = document.getElementById('search-input');
+  input.value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  renderAll();
 }
 
 /* ════════════════════════════════════════
