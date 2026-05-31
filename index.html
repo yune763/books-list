@@ -935,6 +935,7 @@ let selStatus    = '積読';
 let selLoan      = '';
 let editingId    = null;
 let pendingThumb = null;
+let pendingISBN  = null;
 let scanner      = null;
 let inputMode    = 'manual';
 let searchQuery  = '';
@@ -1051,7 +1052,7 @@ function switchTab(tab) {
   );
   const idx = TABS.indexOf(tab);
   const container = document.getElementById('slide-container');
-  container.scrollTo({ left: idx * container.clientWidth, behavior: 'smooth' });
+  container.scrollLeft = idx * container.clientWidth;
   document.querySelectorAll('.swipe-dot').forEach((d, i) =>
     d.classList.toggle('active', i === idx)
   );
@@ -1124,7 +1125,7 @@ function renderBooks(status) {
       ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
       <div class="card" data-status="${b.status}">
         <div class="cover">
-          ${b.thumb ? `<img src="${esc(b.thumb)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.style.display='none'">` : ''}
+          ${b.thumb ? `<img src="${esc(b.thumb)}" data-isbn="${b.isbn||''}" loading="lazy" decoding="async" onerror="coverFallback(this)">` : ''}
         </div>
         <div class="info">
           <div class="info-title">${esc(b.title)}</div>
@@ -1149,6 +1150,16 @@ function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function coverFallback(img) {
+  const isbn = img.dataset.isbn;
+  if (isbn && !img.dataset.tried) {
+    img.dataset.tried = '1';
+    img.src = `https://cover.openbd.jp/${isbn}.jpg`;
+  } else {
+    img.style.display = 'none';
+  }
 }
 
 /* ════════════════════════════════════════
@@ -1268,6 +1279,7 @@ function openBookModal(book) {
 
   // 表紙プレビューをリセット（編集時は既存の表紙を表示）
   setPendingThumb(book?.thumb || null);
+  pendingISBN = book?.isbn || null;
 
   pickStatus(book?.status || currentTab);
   pickLoan(book?.loan || '');
@@ -1285,6 +1297,7 @@ function closeBookModal() {
   document.getElementById('book-overlay').classList.remove('open');
   document.body.style.overflow = '';
   setPendingThumb(null);
+  pendingISBN = null;
 }
 
 function openSettingsModal() {
@@ -1443,6 +1456,7 @@ async function applyISBN(isbn) {
       document.getElementById('f-category').value = info.category || '';
       if (info.publisher) document.getElementById('f-publisher').value = info.publisher;
       setPendingThumb(info.thumb || null);
+      pendingISBN = isbn;
       toast('書籍情報を自動入力しました');
       checkDuplicate();
     } else {
@@ -1688,6 +1702,7 @@ async function saveBook() {
     status:    selStatus,
     loan:      selLoan || null,
     thumb:     pendingThumb ?? existing?.thumb ?? null,
+    isbn:      pendingISBN  ?? existing?.isbn  ?? null,
     addedAt:   existing?.addedAt || now
   };
 
@@ -1702,8 +1717,9 @@ async function saveBook() {
   toast(existing ? '書籍を更新しました' : '書籍を追加しました');
   renderAll();
 
-  // Switch tab to the saved status
-  if (currentTab !== selStatus) switchTab(selStatus);
+  // Switch tab to the saved status (rAF ensures layout is flushed before scroll)
+  const targetTab = selStatus;
+  requestAnimationFrame(() => switchTab(targetTab));
 }
 
 function editBook(id) {
