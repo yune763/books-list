@@ -1103,7 +1103,12 @@ function subscribe() {
       firstSnapshot = false;
       books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       books.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
-      localStorage.setItem('bk_list', JSON.stringify(books));
+      try {
+        localStorage.setItem('bk_list', JSON.stringify(books));
+      } catch (e) {
+        // 容量超過時はキャッシュをスキップ（Firestoreから都度取得）
+        localStorage.removeItem('bk_list');
+      }
       renderAll();
     },
     err => console.error('Firestore error:', err)
