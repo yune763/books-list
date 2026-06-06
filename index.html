@@ -1061,27 +1061,39 @@ function switchTab(tab) {
 /* ════════════════════════════════════════
    Render
 ════════════════════════════════════════ */
-function renderAll() { TABS.forEach(s => renderBooks(s)); updateBadges(); }
+const _jaCollator = new Intl.Collator('ja');
 
-function matchesSearch(b) {
-  if (!searchQuery) return true;
-  const q = searchQuery.toLowerCase();
-  return (b.title     || '').toLowerCase().includes(q) ||
-         (b.author    || '').toLowerCase().includes(q) ||
-         (b.category  || '').toLowerCase().includes(q) ||
-         (b.publisher || '').toLowerCase().includes(q);
-}
+function renderAll() {
+  // フィルター済みリストを一度だけ生成してすべてのタブ・バッジで共有
+  const q = searchQuery ? searchQuery.toLowerCase() : null;
+  const matched = q
+    ? books.filter(b =>
+        (b.title     || '').toLowerCase().includes(q) ||
+        (b.author    || '').toLowerCase().includes(q) ||
+        (b.category  || '').toLowerCase().includes(q) ||
+        (b.publisher || '').toLowerCase().includes(q))
+    : books;
 
-function updateBadges() {
-  ['積読','未購入','読了'].forEach(s => {
+  // バッジ更新（カウントのみ、軽量）
+  TABS.forEach(s =>
     document.getElementById('b-' + s).textContent =
-      books.filter(b => b.status === s && matchesSearch(b)).length;
-  });
+      matched.filter(b => b.status === s).length
+  );
+
+  // 現在表示中のタブを即座にレンダリング
+  renderBooks(currentTab, matched.filter(b => b.status === currentTab));
+
+  // 非表示タブは次フレームで描画（メインスレッドをブロックしない）
+  requestAnimationFrame(() =>
+    TABS.forEach(s => {
+      if (s !== currentTab)
+        renderBooks(s, matched.filter(b => b.status === s));
+    })
+  );
 }
 
-function renderBooks(status) {
+function renderBooks(status, list) {
   const grid = document.getElementById('grid-' + status);
-  const list = books.filter(b => b.status === status && matchesSearch(b));
 
   if (!list.length) {
     const msgs = {
@@ -1101,26 +1113,21 @@ function renderBooks(status) {
     return;
   }
 
-  // 著者名順にソート（著者不明は末尾）
-  const sorted = [...list].sort((a, b) => {
-    const aa = a.author || 'zzz';
-    const bb = b.author || 'zzz';
-    return aa.localeCompare(bb, 'ja');
-  });
-
-  const summaryHtml = `<div class="summary">
-    <span>${sorted.length}</span> 冊
-  </div>`;
+  // Intl.Collator を再利用（毎回生成より大幅に高速）
+  const sorted = [...list].sort((a, b) =>
+    _jaCollator.compare(a.author || 'zzz', b.author || 'zzz')
+  );
 
   let prevAuthor = null;
-  const cardsHtml = sorted.map(b => {
+  const parts = [`<div class="summary"><span>${sorted.length}</span> 冊</div>`];
+  for (const b of sorted) {
     const author = b.author || '著者不明';
-    const header = author !== prevAuthor
-      ? `<div class="author-head">${esc(author)}</div>`
-      : '';
-    prevAuthor = author;
+    if (author !== prevAuthor) {
+      parts.push(`<div class="author-head">${esc(author)}</div>`);
+      prevAuthor = author;
+    }
     const loanClass = b.loan === '貸出中' ? 'loan-kashidashi' : b.loan === '借用中' ? 'loan-shakuyo' : '';
-    return header + `
+    parts.push(`
     <div class="card-wrap">
       ${b.loan ? `<span class="loan-label ${loanClass}">${esc(b.loan)}</span>` : ''}
       <div class="card" data-status="${b.status}">
@@ -1139,10 +1146,9 @@ function renderBooks(status) {
           <button class="btn-icon btn-delete" onclick="deleteBook('${b.id}')">削除</button>
         </div>
       </div>
-    </div>`;
-  }).join('');
-
-  grid.innerHTML = summaryHtml + cardsHtml;
+    </div>`);
+  }
+  grid.innerHTML = parts.join('');
 }
 
 function esc(s) {
