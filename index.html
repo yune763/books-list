@@ -941,6 +941,8 @@ let inputMode    = 'manual';
 let searchQuery  = '';
 let searchOpen   = false;
 
+const _jaCollator = new Intl.Collator('ja');
+
 /* ════════════════════════════════════════
    Boot
 ════════════════════════════════════════ */
@@ -1061,8 +1063,6 @@ function switchTab(tab) {
 /* ════════════════════════════════════════
    Render
 ════════════════════════════════════════ */
-const _jaCollator = new Intl.Collator('ja');
-
 function renderAll() {
   // フィルター済みリストを一度だけ生成してすべてのタブ・バッジで共有
   const q = searchQuery ? searchQuery.toLowerCase() : null;
